@@ -52,11 +52,12 @@ def _require_str(name: str, value: str | None, default: str) -> str:
 DATABASE_URL = os.getenv("BOOKS_DATABASE_URL", "sqlite:////data/books.db")
 STORAGE_PATH = Path(os.getenv("BOOKS_STORAGE_PATH", "/data/books")).resolve()
 MAX_FILE_BYTES = int(os.getenv("BOOKS_MAX_FILE_MB", "200")) * 1024 * 1024
-JWT_SECRET = _require_str("BOOKS_JWT_SECRET", os.getenv("BOOKS_JWT_SECRET"), "")
 ADMIN_USERNAME = os.getenv("BOOKS_ADMIN_USERNAME", "admin")
-ADMIN_PASSWORD = _require_str(
-    "BOOKS_ADMIN_PASSWORD", os.getenv("BOOKS_ADMIN_PASSWORD"), ""
-)
+# NOTA: JWT_SECRET y ADMIN_PASSWORD se resuelven perezosamente a través de
+# `resolve_runtime_config()` (llamado en el lifespan). Inicializarlos en el
+# import del módulo hace que cualquier herramienta (Alembic, scripts de
+# mantenimiento, tests con env vacío) que importe `app.main` falle con
+# RuntimeError aunque no necesite el secreto.
 
 from app.extractors import extract_epub_cover, extract_epub_title, safe_filename
 
@@ -171,6 +172,25 @@ def db_session() -> Generator[Session, None, None]:
         db.close()
 
 
+# JWT_SECRET y ADMIN_PASSWORD se inicializan perezosamente. Inicializarlos
+# al importar el módulo rompe scripts (Alembic, mantenimiento) que sólo
+# necesitan los modelos. `resolve_runtime_config()` los setea antes de
+# aceptar cualquier request y rechaza secretos débiles conocidos.
+JWT_SECRET: str = ""
+ADMIN_PASSWORD: str = ""
+
+
+def resolve_runtime_config() -> None:
+    """Valida las variables sensibles y las publica como globales."""
+    global JWT_SECRET, ADMIN_PASSWORD
+    JWT_SECRET = _require_str(
+        "BOOKS_JWT_SECRET", os.getenv("BOOKS_JWT_SECRET"), ""
+    )
+    ADMIN_PASSWORD = _require_str(
+        "BOOKS_ADMIN_PASSWORD", os.getenv("BOOKS_ADMIN_PASSWORD"), ""
+    )
+
+
 def serialize_book(book: Book) -> dict:
     progress = (
         {"position": book.progress.position, "percent": book.progress.percent}
@@ -262,7 +282,28 @@ class ShelfInput(BaseModel):
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncGenerator[None, None]:
+    resolve_runtime_config()
     STORAGE_PATH.mkdir(parents=True, exist_ok=True)
+    # Alembic es la fuente de verdad del schema. Si la DB no existe o
+    # nunca se inicializó, `upgrade head` crea todas las tablas. Si ya
+    # fue "stampada" (caso producción), el upgrade es no-op.
+    import subprocess
+    import sys
+    backend_dir = Path(__file__).resolve().parent.parent
+    result = subprocess.run(
+        [sys.executable, "-m", "alembic", "upgrade", "head"],
+        cwd=str(backend_dir),
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"alembic upgrade head falló: {result.stderr or result.stdout}"
+        )
+    # Red de seguridad: si hay tablas que Alembic aún no migró (por ejemplo,
+    # durante el período de transición de create_all a Alembic), las crea
+    # aquí. create_all es no-op para tablas existentes.
     Base.metadata.create_all(engine)
     with SessionLocal() as db:
         if not db.scalar(select(User).limit(1)):

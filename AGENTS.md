@@ -20,6 +20,15 @@ make compose-config
 
 `make frontend-test` ejecuta además la suite de frontend si existe. Para probar imágenes ya publicadas localmente, copie `.env.example` a `.env`, asigne valores reales a `BOOKS_JWT_SECRET` y `BOOKS_ADMIN_PASSWORD`, y use `make pull` seguido de `make up`.
 
+## Schema de la base de datos (Alembic)
+
+El schema se versiona con **Alembic**. La fuente de verdad es `backend/alembic/versions/`. El backend ejecuta `alembic upgrade head` al arrancar (dentro del lifespan), antes de aceptar requests.
+
+- **Regla**: cualquier cambio en `backend/app/main.py` (modelos `User`, `Book`, `Progress`, `Bookmark`, `Highlight`, `Shelf`, `ShelfBook`) **debe** venir acompañado de un archivo nuevo en `backend/alembic/versions/` generado con `alembic revision --autogenerate -m "<descripción>"`. La revisión se commitea en el mismo commit que el cambio de modelo.
+- **Para una DB nueva** (entorno de pruebas recién creado, CI): `alembic upgrade head` crea todas las tablas.
+- **Para una DB existente** (caso de producción, antes de introducir Alembic): `alembic stamp head` registra la versión actual sin ejecutar SQL. Sólo se hace una vez.
+- El módulo `app.main` está diseñado para que `Base` y los modelos sean importables sin definir `BOOKS_JWT_SECRET` ni `BOOKS_ADMIN_PASSWORD` (esos secretos se resuelven en el lifespan, vía `resolve_runtime_config()`). Esto permite que Alembic, scripts de mantenimiento y tests con env vacío puedan usar los modelos sin tener que configurar el runtime completo.
+
 ## Patrón de despliegue
 
 Dockge gestiona la pila desde `/opt/stacks/books`. La entrega autorizada copia el proyecto allí, crea/actualiza exclusivamente `/opt/stacks/books/.env`, y ejecuta:
