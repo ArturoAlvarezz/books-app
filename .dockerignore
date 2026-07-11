@@ -1,0 +1,41 @@
+# Control de versiones y metadatos locales
+.git
+.github
+.hermes
+
+# Secretos y configuración de estación de trabajo
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Dependencias, cachés y artefactos
+**/node_modules
+**/.npm
+**/.vite
+**/__pycache__
+**/*.py[cod]
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+**/.coverage
+**/coverage
+**/dist
+**/build
+
+# Entornos virtuales y datos en ejecución
+.venv
+venv
+**/.venv
+**/data
+**/uploads
+*.sqlite
+*.sqlite3
+*.db
+
+# Sistema/editor
+.DS_Store
+.vscode
+.idea
+*.log

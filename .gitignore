@@ -1,0 +1,36 @@
+# Configuración local y secretos
+.env
+.env.*
+!.env.example
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Node/Vite
+node_modules/
+dist/
+*.tsbuildinfo
+coverage/
+.vite/
+
+# Datos persistentes y ficheros locales
+/data/
+/uploads/
+*.sqlite
+*.sqlite3
+*.db
+/backend/test-data/
+
+# Editor/SO
+.DS_Store
+.vscode/
+.idea/
+*.log

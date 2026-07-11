@@ -1,0 +1,47 @@
+name: books
+
+services:
+  backend:
+    image: arturoalvarez/books-backend:latest
+    restart: unless-stopped
+    environment:
+      # La aplicación debe guardar SQLite, ficheros subidos y demás estado bajo /data.
+      BOOKS_DATABASE_URL: sqlite:////data/books.db
+      BOOKS_STORAGE_PATH: /data/storage
+      BOOKS_JWT_SECRET: ${BOOKS_JWT_SECRET:?Defina BOOKS_JWT_SECRET en el fichero .env}
+      BOOKS_ADMIN_USERNAME: ${BOOKS_ADMIN_USERNAME:-admin}
+      BOOKS_ADMIN_PASSWORD: ${BOOKS_ADMIN_PASSWORD:?Defina BOOKS_ADMIN_PASSWORD en el fichero .env}
+      BOOKS_MAX_FILE_MB: ${BOOKS_MAX_FILE_MB:-200}
+    volumes:
+      - books-data:/data
+    networks:
+      - books-private
+    mem_limit: 768m
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+
+  frontend:
+    image: arturoalvarez/books-frontend:latest
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "8086:80"
+    networks:
+      - books-private
+    mem_limit: 256m
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+volumes:
+  books-data:
+    name: books-data
+
+networks:
+  books-private:
+    name: books-private
+    driver: bridge
