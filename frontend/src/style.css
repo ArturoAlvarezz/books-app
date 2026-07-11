@@ -1,1 +1,498 @@
-:root{--font:18px;font-family:system-ui,sans-serif;color:#eee;background:#12121a}*{box-sizing:border-box}body{margin:0}main{max-width:1200px;margin:auto;padding:22px}header,.actions,.tools{display:flex;gap:12px;align-items:center;flex-wrap:wrap}header h1{margin-right:auto}.actions{margin:22px 0}input,button{padding:10px;border-radius:8px;border:1px solid #444;background:#232330;color:#eee}button,.upload{cursor:pointer;background:#7057d9;border:0}.upload input{display:none}.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px}.card{background:#20202b;border-radius:12px;padding:14px}.cover{height:150px;border-radius:8px;background:linear-gradient(145deg,#7057d9,#24243c);display:grid;place-items:center;font-size:28px;font-weight:bold}.card h2{font-size:18px}.card div:last-child{display:flex;gap:6px;margin-top:12px}.card button{padding:8px}progress{width:100%}.login{max-width:360px;margin:15vh auto}.login form{display:grid;gap:12px}.error{color:#ff9a9a}.empty{opacity:.7}.reader{max-width:950px}.reading{margin-top:16px;background:#f5ecd7;color:#241e18;min-height:65vh;padding:30px;line-height:1.7;border-radius:8px;overflow:auto}.reading article{white-space:pre-wrap}.pdf{width:100%;height:70vh;border:0}aside{display:flex;gap:8px;flex-wrap:wrap;margin-top:15px}@media(max-width:600px){main{padding:14px}.grid{grid-template-columns:1fr 1fr}.card{padding:10px}.cover{height:110px}}
+:root {
+  --bg: #14141d;
+  --surface: #1e1e2a;
+  --surface-2: #262635;
+  --border: #34344a;
+  --text: #e8e8f0;
+  --text-dim: #9c9cb0;
+  --accent: #8b7bf4;
+  --accent-strong: #7057d9;
+  --danger: #ff9a9a;
+  --ok: #7fd8a4;
+  --paper: #f7efdd;
+  --ink: #262019;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+}
+
+body {
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+}
+
+main {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+h1 {
+  font-size: 24px;
+  margin: 0;
+}
+
+button,
+input,
+select {
+  font: inherit;
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 9px 14px;
+}
+
+button {
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+button:hover {
+  border-color: var(--accent);
+}
+
+button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+button.primary,
+.upload {
+  background: var(--accent-strong);
+  border-color: var(--accent-strong);
+  color: #fff;
+  font-weight: 600;
+}
+
+button.primary:hover,
+.upload:hover {
+  background: var(--accent);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ---------- Barra superior y acciones ---------- */
+
+.topbar {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+}
+
+.topbar h1 {
+  margin-right: auto;
+}
+
+.status {
+  font-size: 13px;
+}
+
+.status.online {
+  color: var(--ok);
+}
+
+.status.offline {
+  color: var(--danger);
+}
+
+.actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 20px 0 12px;
+}
+
+.actions input[type="search"] {
+  flex: 1;
+  min-width: 200px;
+}
+
+.upload {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 10px;
+  padding: 9px 14px;
+  cursor: pointer;
+}
+
+.upload.busy {
+  opacity: 0.7;
+  cursor: progress;
+}
+
+.upload input {
+  display: none;
+}
+
+.filters {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+
+.chip {
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-dim);
+}
+
+.chip.active {
+  background: var(--accent-strong);
+  border-color: var(--accent-strong);
+  color: #fff;
+}
+
+/* ---------- Rejilla de libros ---------- */
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 16px;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+}
+
+.cover {
+  position: relative;
+  height: 140px;
+  border-radius: 10px;
+  border: 0;
+  background: linear-gradient(150deg, var(--accent-strong), #2b2b45);
+  display: grid;
+  place-items: center;
+  padding: 0;
+}
+
+.format-badge {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: #fff;
+}
+
+.fav-badge,
+.offline-badge {
+  position: absolute;
+  top: 8px;
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.fav-badge {
+  right: 8px;
+  color: gold;
+}
+
+.offline-badge {
+  left: 8px;
+  color: var(--ok);
+}
+
+.card h2 {
+  font-size: 16px;
+  margin: 12px 0 2px;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.card .authors {
+  margin: 0 0 4px;
+  color: var(--text-dim);
+  font-size: 14px;
+}
+
+.card small {
+  color: var(--text-dim);
+}
+
+progress {
+  width: 100%;
+  height: 6px;
+  margin-top: 8px;
+  accent-color: var(--accent);
+}
+
+.card-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.card-actions .primary {
+  flex: 1;
+}
+
+.card-actions button {
+  padding: 8px 10px;
+}
+
+.empty {
+  text-align: center;
+  color: var(--text-dim);
+  margin-top: 48px;
+}
+
+.error {
+  color: var(--danger);
+  background: rgba(255, 120, 120, 0.1);
+  border: 1px solid rgba(255, 120, 120, 0.3);
+  border-radius: 10px;
+  padding: 10px 14px;
+}
+
+.notice {
+  color: var(--ok);
+  background: rgba(120, 220, 160, 0.08);
+  border: 1px solid rgba(120, 220, 160, 0.25);
+  border-radius: 10px;
+  padding: 10px 14px;
+}
+
+.loading {
+  color: var(--text-dim);
+  text-align: center;
+  padding: 40px 0;
+}
+
+/* ---------- Login ---------- */
+
+.login {
+  max-width: 360px;
+  margin-top: 14vh;
+  text-align: center;
+}
+
+.login-subtitle {
+  color: var(--text-dim);
+  margin-top: 4px;
+}
+
+.login form {
+  display: grid;
+  gap: 14px;
+  margin-top: 24px;
+  text-align: left;
+}
+
+.login label {
+  display: grid;
+  gap: 6px;
+  font-size: 14px;
+  color: var(--text-dim);
+}
+
+/* ---------- Lector ---------- */
+
+.reader {
+  max-width: 1000px;
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  padding-bottom: 12px;
+}
+
+.reader-bar {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding-bottom: 12px;
+}
+
+.reader-bar h1 {
+  font-size: 17px;
+  flex: 1;
+  min-width: 120px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.reader-tools {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.reader-tools .percent {
+  color: var(--text-dim);
+  font-size: 13px;
+  min-width: 38px;
+  text-align: right;
+}
+
+.reader-tools button {
+  padding: 7px 10px;
+  font-size: 14px;
+}
+
+.bookmarks {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  padding: 10px;
+  margin-bottom: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.bookmarks p {
+  margin: 0;
+  color: var(--text-dim);
+}
+
+.bookmark-chip {
+  display: inline-flex;
+}
+
+.bookmark-chip button:first-child {
+  border-radius: 999px 0 0 999px;
+  padding: 5px 12px;
+}
+
+.bookmark-chip button:last-child {
+  border-radius: 0 999px 999px 0;
+  border-left: 0;
+  padding: 5px 10px;
+  color: var(--danger);
+}
+
+.reading {
+  flex: 1;
+  min-height: 0;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+/* EPUB */
+
+.epub-wrap {
+  position: relative;
+  height: 100%;
+}
+
+.epub-host {
+  height: 100%;
+  padding: 0 44px;
+}
+
+.page-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+  width: 38px;
+  height: 64px;
+  font-size: 26px;
+  background: rgba(0, 0, 0, 0.25);
+  color: #fff;
+  border: 0;
+}
+
+.page-nav.prev {
+  left: 4px;
+}
+
+.page-nav.next {
+  right: 4px;
+}
+
+/* TXT */
+
+.txt-host {
+  height: 100%;
+  overflow-y: auto;
+  padding: 32px clamp(16px, 6vw, 64px);
+}
+
+.txt-host article {
+  white-space: pre-wrap;
+  line-height: 1.75;
+  max-width: 70ch;
+  margin: 0 auto;
+}
+
+/* CBZ */
+
+.cbz-host {
+  height: 100%;
+  overflow-y: auto;
+  background: #101018;
+  text-align: center;
+}
+
+.comic-page {
+  display: block;
+  max-width: 100%;
+  margin: 0 auto 6px;
+}
+
+.page-indicator {
+  margin: 6px 0 0;
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 13px;
+}
+
+/* PDF */
+
+.pdf-host {
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+/* ---------- Móvil ---------- */
+
+@media (max-width: 600px) {
+  main {
+    padding: 12px;
+  }
+
+  .grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .card {
+    padding: 10px;
+  }
+
+  .cover {
+    height: 110px;
+  }
+
+  .epub-host {
+    padding: 0 36px;
+  }
+}
