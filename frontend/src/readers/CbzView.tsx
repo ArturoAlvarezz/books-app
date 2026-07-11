@@ -15,8 +15,13 @@ const CbzView = forwardRef<ReaderHandle, ReaderViewProps>(function CbzView(
     host.current?.children[index]?.scrollIntoView({ block: "start" });
   };
 
+  const next = () => goToPage(Math.min(pages.length - 1, current + 1));
+  const prev = () => goToPage(Math.max(0, current - 1));
+
   useImperativeHandle(ref, () => ({
     goTo: (position: string) => goToPage(Number(position) || 0),
+    next,
+    prev,
   }));
 
   useEffect(() => {
