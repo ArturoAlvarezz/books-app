@@ -28,7 +28,15 @@ coverage/
 *.sqlite3
 *.db
 /backend/test-data/
+/backend/test.db
 /backend/dev-data/
+/backend/e2e-tmp/
+
+# Artefactos de Playwright
+/playwright-report/
+/frontend/playwright-report/
+/frontend/test-results/
+/test-results/
 
 # Editor/SO
 .DS_Store

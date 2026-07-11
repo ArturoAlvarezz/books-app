@@ -30,12 +30,33 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, relationship, sessionmaker
 
+_WEAK_JWT_SECRETS = {"", "cambia-este-secreto-en-produccion", "change-me", "secret"}
+_WEAK_PASSWORDS = {"", "cambiar-esta-contrasena", "change-me", "admin", "password"}
+
+
+def _require_str(name: str, value: str | None, default: str) -> str:
+    resolved = value if value else default
+    if name == "BOOKS_JWT_SECRET" and resolved in _WEAK_JWT_SECRETS:
+        raise RuntimeError(
+            "BOOKS_JWT_SECRET no puede ser un valor por defecto conocido. "
+            "Genera uno con `openssl rand -hex 32` y configúralo en .env."
+        )
+    if name == "BOOKS_ADMIN_PASSWORD" and resolved in _WEAK_PASSWORDS:
+        raise RuntimeError(
+            "BOOKS_ADMIN_PASSWORD no puede ser un valor por defecto conocido. "
+            "Configura una contraseña fuerte en .env."
+        )
+    return resolved
+
+
 DATABASE_URL = os.getenv("BOOKS_DATABASE_URL", "sqlite:////data/books.db")
 STORAGE_PATH = Path(os.getenv("BOOKS_STORAGE_PATH", "/data/books")).resolve()
 MAX_FILE_BYTES = int(os.getenv("BOOKS_MAX_FILE_MB", "200")) * 1024 * 1024
-JWT_SECRET = os.getenv("BOOKS_JWT_SECRET", "cambia-este-secreto-en-produccion")
+JWT_SECRET = _require_str("BOOKS_JWT_SECRET", os.getenv("BOOKS_JWT_SECRET"), "")
 ADMIN_USERNAME = os.getenv("BOOKS_ADMIN_USERNAME", "admin")
-ADMIN_PASSWORD = os.getenv("BOOKS_ADMIN_PASSWORD", "cambiar-esta-contrasena")
+ADMIN_PASSWORD = _require_str(
+    "BOOKS_ADMIN_PASSWORD", os.getenv("BOOKS_ADMIN_PASSWORD"), ""
+)
 
 SUPPORTED = {"EPUB", "PDF", "CBZ", "TXT"}
 MEDIA_TYPES = {
