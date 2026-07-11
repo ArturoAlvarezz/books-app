@@ -4,6 +4,11 @@ WORKDIR /app
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 COPY app ./app
+# Alembic: necesario para que el lifespan corra `alembic upgrade head` al
+# arrancar. Si no se copia, el backend falla con
+# "No 'script_location' key found in configuration".
+COPY alembic ./alembic
+COPY alembic.ini ./alembic.ini
 ENV BOOKS_DATABASE_URL=sqlite:////data/books.db \
     BOOKS_STORAGE_PATH=/data/storage \
     BOOKS_MAX_UPLOAD_MB=200
