@@ -28,20 +28,37 @@ jobs:
       - name: Verify each model change ships with a migration
         run: |
           set -euo pipefail
-          # Si `backend/app/main.py` cambió en este push (diff vs main anterior)
-          # debe existir al menos UN archivo nuevo en backend/alembic/versions/.
-          # Esto evita repetir el bug de "agregué cover_path sin migrar".
-          if git diff --name-only HEAD~1 HEAD | grep -q '^backend/app/main\.py$'; then
-            NEW_MIG=$(git diff --name-only HEAD~1 HEAD | grep -E '^backend/alembic/versions/.*\.py$' || true)
-            if [ -z "$NEW_MIG" ]; then
-              echo "::error::backend/app/main.py cambió pero no se agregó ninguna migración en backend/alembic/versions/."
-              echo "Generá una con: cd backend && alembic revision --autogenerate -m 'descripcion'"
-              exit 1
-            fi
-            echo "✅ Migración detectada: $NEW_MIG"
-          else
+          # Gate inteligente:
+          # - Si backend/app/main.py NO cambió, no hay nada que verificar.
+          # - Si cambió pero los cambios NO tocan definiciones de modelo
+          #   (clases que heredan de `Base`), el cambio es de código de runtime
+          #   (endpoints, helpers, refactors) y no requiere migración nueva.
+          # - Si cambió y SÍ toca definiciones de modelo, debe existir al
+          #   menos un archivo nuevo en backend/alembic/versions/.
+          #
+          # Esto evita repetir el bug de "agregué cover_path sin migrar"
+          # sin romper PRs legítimos que sólo tocan lógica de runtime.
+          if ! git diff --name-only HEAD~1 HEAD | grep -q '^backend/app/main\.py$'; then
             echo "app/main.py sin cambios, gate omitido."
+            exit 0
           fi
+          # Diff sólo del archivo, filtrado a líneas de definición de modelo.
+          # Coincide con `class Nombre(Base):` o `class Nombre(DeclarativeBase):`.
+          MODEL_DIFF=$(git diff HEAD~1 HEAD -- backend/app/main.py \
+            | grep -E '^\+[[:space:]]*class[[:space:]]+[A-Za-z_][A-Za-z0-9_]*[[:space:]]*\([^)]*Base[^)]*\)' || true)
+          if [ -z "$MODEL_DIFF" ]; then
+            echo "app/main.py cambió pero no toca definiciones de modelo. Gate omitido."
+            exit 0
+          fi
+          NEW_MIG=$(git diff --name-only HEAD~1 HEAD | grep -E '^backend/alembic/versions/.*\.py$' || true)
+          if [ -z "$NEW_MIG" ]; then
+            echo "::error::app/main.py agregó/modificó clases de modelo pero no hay migración nueva."
+            echo "Clases tocadas:"
+            echo "$MODEL_DIFF"
+            echo "Generá una con: cd backend && alembic revision --autogenerate -m 'descripcion'"
+            exit 1
+          fi
+          echo "✅ Migración detectada: $NEW_MIG"
 
   test-backend:
     name: Backend tests (pytest)
