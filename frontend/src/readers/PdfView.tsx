@@ -50,16 +50,16 @@ const PdfView = forwardRef<ReaderHandle, ReaderViewProps>(function PdfView(
         const pdfjsLib = await import("pdfjs-dist");
 
         // El worker pdf.js viene como .mjs separado. Vite lo bundlea como
-        // asset (lo vimos en el build output como `pdf.worker.min-<hash>.mjs`).
-        // Apuntamos al patrón correcto; pdf.js 4.x acepta una URL cualquiera
-        // y descarga el módulo desde ahí.
+        // asset con un hash (e.g. `pdf.worker.min-yatZIOMy.mjs`). Usamos el
+        // sufijo `?url` para que Vite nos devuelva la URL final correcta.
+        // Si la importación falla, fallback a main thread (sin worker).
         try {
-          pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-            "pdfjs-dist/build/pdf.worker.min.mjs",
-            import.meta.url
-          ).toString();
+          const workerUrl = (await import(
+            "pdfjs-dist/build/pdf.worker.min.mjs?url"
+          )).default;
+          pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
         } catch (e) {
-          console.warn("pdf.js workerSrc falló, usando main thread:", e);
+          console.warn("pdf.js worker import falló, usando main thread:", e);
           pdfjsLib.GlobalWorkerOptions.workerSrc = "" as any;
         }
 
