@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Book, getToken, setSessionExpiredHandler, setToken } from "./api";
+import { Book, clearOfflineBooks, getToken, setSessionExpiredHandler, setToken } from "./api";
 import Library from "./components/Library";
 import Login from "./components/Login";
 import Reader from "./components/Reader";
@@ -11,12 +11,14 @@ export default function App() {
 
   useEffect(() => {
     setSessionExpiredHandler(() => {
+      void clearOfflineBooks();
       setReading(null);
       setAuthenticated(false);
     });
   }, []);
 
   const logout = () => {
+    void clearOfflineBooks();
     setToken("");
     setReading(null);
     setAuthenticated(false);

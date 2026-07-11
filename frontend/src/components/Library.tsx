@@ -1,4 +1,5 @@
-import { ChangeEvent, useCallback, useEffect, useRef, useState } from "react";
+import { ChangeEvent, CSSProperties, useCallback, useEffect, useRef, useState } from "react";
+import Dialog from "./Dialog";
 import { api, apiJson, Book, offlineBookIds, removeOffline, saveOffline } from "../api";
 import { formatBytes } from "../lib";
 
@@ -9,6 +10,11 @@ const READ_LABELS: Record<Book["read_state"], string> = {
 };
 
 type Filter = "all" | "reading" | "finished" | "favorite";
+
+function coverStyle(title: string): CSSProperties {
+  const hue = [...title].reduce((total, char) => (total * 31 + char.charCodeAt(0)) % 360, 0);
+  return { "--cover-hue": String(hue) } as CSSProperties;
+}
 
 export default function Library({
   onRead,
@@ -27,6 +33,7 @@ export default function Library({
   const [busyOffline, setBusyOffline] = useState<number | null>(null);
   const [offlineIds, setOfflineIds] = useState<Set<number>>(new Set());
   const [online, setOnline] = useState(navigator.onLine);
+  const [pendingDelete, setPendingDelete] = useState<Book | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
@@ -93,8 +100,10 @@ export default function Library({
     }
   };
 
-  const remove = async (book: Book) => {
-    if (!window.confirm(`¿Eliminar «${book.title}» definitivamente?`)) return;
+  const remove = async () => {
+    const book = pendingDelete;
+    if (!book) return;
+    setPendingDelete(null);
     try {
       await api(`/api/books/${book.id}`, { method: "DELETE" });
       await removeOffline(book.id).catch(() => {});
@@ -148,16 +157,23 @@ export default function Library({
           <option value="CBZ">CBZ</option>
           <option value="TXT">TXT</option>
         </select>
-        <label className={uploading ? "upload busy" : "upload"}>
+        <button
+          type="button"
+          className={uploading ? "upload busy" : "upload"}
+          onClick={() => fileInput.current?.click()}
+          disabled={uploading}
+        >
           {uploading ? "Subiendo…" : "+ Subir libro"}
-          <input
-            ref={fileInput}
-            type="file"
-            accept=".epub,.pdf,.cbz,.txt"
-            onChange={upload}
-            disabled={uploading}
-          />
-        </label>
+        </button>
+        <input
+          ref={fileInput}
+          className="visually-hidden"
+          type="file"
+          accept=".epub,.pdf,.cbz,.txt"
+          onChange={upload}
+          disabled={uploading}
+          aria-label="Seleccionar libro para subir"
+        />
       </section>
 
       <nav className="filters" aria-label="Filtros">
@@ -185,8 +201,10 @@ export default function Library({
       <section className="grid">
         {books.map((book) => (
           <article className="card" key={book.id}>
-            <button className="cover" onClick={() => onRead(book)} aria-label={`Leer ${book.title}`}>
-              <span className="format-badge">{book.format}</span>
+            <button className="cover" style={coverStyle(book.title)} onClick={() => onRead(book)} aria-label={`Leer ${book.title}`}>
+              <span className="cover-format">{book.format}</span>
+              <span className="cover-title">{book.title}</span>
+              <span className="cover-spine" aria-hidden="true" />
               {book.favorite && <span className="fav-badge">★</span>}
               {offlineIds.has(book.id) && <span className="offline-badge">✓ offline</span>}
             </button>
@@ -196,7 +214,11 @@ export default function Library({
               {formatBytes(book.size_bytes)} · {READ_LABELS[book.read_state]}
               {book.progress.percent > 0 && ` · ${book.progress.percent}%`}
             </small>
-            <progress value={book.progress.percent} max="100" />
+            <progress
+              value={book.progress.percent}
+              max="100"
+              aria-label={`Progreso de lectura de ${book.title}: ${book.progress.percent}%`}
+            />
             <div className="card-actions">
               <button className="primary" onClick={() => onRead(book)}>
                 {book.progress.percent > 0 && book.read_state !== "finished" ? "Continuar" : "Leer"}
@@ -216,7 +238,7 @@ export default function Library({
               >
                 {book.favorite ? "★" : "☆"}
               </button>
-              <button onClick={() => remove(book)} aria-label={`Eliminar ${book.title}`} title="Eliminar">
+              <button onClick={() => setPendingDelete(book)} aria-label={`Eliminar ${book.title}`} title="Eliminar">
                 🗑
               </button>
             </div>
@@ -230,6 +252,17 @@ export default function Library({
             ? "Ningún libro coincide con los filtros."
             : "Tu biblioteca está vacía. Sube un EPUB, PDF, CBZ o TXT para empezar."}
         </p>
+      )}
+      {pendingDelete && (
+        <Dialog
+          title="Eliminar libro"
+          confirmLabel="Eliminar definitivamente"
+          danger
+          onConfirm={remove}
+          onClose={() => setPendingDelete(null)}
+        >
+          <p>¿Eliminar «{pendingDelete.title}» de la biblioteca y de las descargas offline?</p>
+        </Dialog>
       )}
     </main>
   );

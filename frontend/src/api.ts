@@ -119,6 +119,10 @@ export async function removeOffline(bookId: number): Promise<void> {
   await cache.delete(`/offline/books/${bookId}`);
 }
 
+export async function clearOfflineBooks(): Promise<void> {
+  await caches.delete(OFFLINE_CACHE);
+}
+
 export async function offlineBookIds(): Promise<Set<number>> {
   const cache = await caches.open(OFFLINE_CACHE);
   const keys = await cache.keys();

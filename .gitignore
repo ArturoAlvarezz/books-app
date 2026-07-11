@@ -28,6 +28,7 @@ coverage/
 *.sqlite3
 *.db
 /backend/test-data/
+/backend/dev-data/
 
 # Editor/SO
 .DS_Store
