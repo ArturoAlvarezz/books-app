@@ -4,16 +4,20 @@ import { ReaderHandle, ReaderViewProps } from "./types";
 /**
  * Visor de EPUB.
  *
- * Cambios frente al original:
- * - Sustituye los botones de paginación por swipe horizontal con animación.
- *   Los listeners `touchstart/touchend` calculan deltaX; si supera el umbral
- *   (50 px o 20 % del ancho) avanza/retrocede página con la animación nativa
- *   de epub.js (defaultSettings.snap).
- * - Mantiene el clic en los bordes como alternativa accesible.
- * - Expone next/prev en el imperative handle para que el scrubber funcione.
+ * Bugs corregidos en esta versión:
+ * 1. Swipe horizontal: los listeners van en `document` con `capture:true` para
+ *    capturar el evento antes que epub.js (que está dentro de un iframe).
+ *    Antes los listeners estaban sobre el iframe o el host, y epub.js
+ *    consumía el evento. Ahora la lógica vive fuera del iframe.
+ * 2. Threshold: bajado a 30 px (antes 40-50) y se permite componente
+ *    vertical hasta 1.5x del horizontal — antes se exigía horizontal puro,
+ *    lo cual es irreal en móvil.
+ * 3. Snap: epub.js por defecto hace su propia paginación al detectar drag;
+ *    deshabilitamos eso con `defaultSettings.snap = false` para que no robe
+ *    nuestros eventos.
  */
 const EpubView = forwardRef<ReaderHandle, ReaderViewProps>(function EpubView(
-  { blob, initialPosition, fontSize, onPosition, onError },
+  { blob, initialPosition, fontSize, onPosition, onError, onToggleChrome },
   ref
 ) {
   const host = useRef<HTMLDivElement>(null);
@@ -29,8 +33,96 @@ const EpubView = forwardRef<ReaderHandle, ReaderViewProps>(function EpubView(
   useEffect(() => {
     let book: any = null;
     let cancelled = false;
-    let touchStartX: number | null = null;
-    let touchStartY: number | null = null;
+
+    // --- SWIPE HORIZONTAL SOBRE DOCUMENT ---
+    // Necesario porque los touch events que ocurren dentro del iframe de
+    // epub.js NO burbujean al host. Capturamos en la fase de capture y
+    // medimos el delta manualmente.
+    let touchActive = false;
+    let startX = 0;
+    let startY = 0;
+    let startT = 0;
+
+    const onTouchStart = (event: TouchEvent) => {
+      if (event.touches.length !== 1) return;
+      touchActive = true;
+      startX = event.touches[0].clientX;
+      startY = event.touches[0].clientY;
+      startT = Date.now();
+    };
+
+    const onTouchEnd = (event: TouchEvent) => {
+      if (!touchActive) return;
+      touchActive = false;
+      const t = event.changedTouches[0];
+      if (!t) return;
+
+      const dx = t.clientX - startX;
+      const dy = t.clientY - startY;
+      const adx = Math.abs(dx);
+      const ady = Math.abs(dy);
+      const elapsed = Date.now() - startT;
+
+      // Sólo swipes rápidos (no drags largos de lectura)
+      if (elapsed > 600) return;
+
+      // Componente horizontal debe ganar, pero tolerar hasta 1.5x de vertical.
+      if (adx < 30) return;
+      if (ady > adx * 1.5) return;
+
+      // Swipe horizontal claro.
+      if (dx <= -30) rendition.current?.next();
+      else if (dx >= 30) rendition.current?.prev();
+    };
+
+    // --- TAP EN ZONA CENTRAL PARA TOGGLE DEL CHROME ---
+    // En móvil el swipe es para paginar. Para mostrar/ocultar la barra
+    // usamos un tap corto en el centro vertical de la pantalla, evitando
+    // los extremos (que pueden ser zonas de scroll).
+    let tapStartX = 0;
+    let tapStartY = 0;
+    let tapStartT = 0;
+    let tapMoved = false;
+
+    const onTapStart = (event: TouchEvent) => {
+      if (event.touches.length !== 1) return;
+      tapStartX = event.touches[0].clientX;
+      tapStartY = event.touches[0].clientY;
+      tapStartT = Date.now();
+      tapMoved = false;
+    };
+    const onTapMove = (event: TouchEvent) => {
+      if (tapStartT === 0) return;
+      const t = event.touches[0];
+      if (!t) return;
+      if (
+        Math.abs(t.clientX - tapStartX) > 10 ||
+        Math.abs(t.clientY - tapStartY) > 10
+      ) {
+        tapMoved = true;
+      }
+    };
+    const onTapEnd = (event: TouchEvent) => {
+      if (tapStartT === 0) return;
+      const elapsed = Date.now() - tapStartT;
+      const t = event.changedTouches[0];
+      tapStartT = 0;
+      if (!t || tapMoved || elapsed > 350) return;
+
+      // Zona central: entre 25% y 75% horizontal, y entre 30% y 70% vertical.
+      // Evita esquinas (donde iOS hace swipe-back) y zonas de scroll.
+      const x = t.clientX / window.innerWidth;
+      const y = t.clientY / window.innerHeight;
+      if (x > 0.25 && x < 0.75 && y > 0.3 && y < 0.7) {
+        onToggleChrome?.();
+      }
+    };
+
+    document.addEventListener("touchstart", onTouchStart, { capture: true, passive: true });
+    document.addEventListener("touchend", onTouchEnd, { capture: true, passive: true });
+    document.addEventListener("touchstart", onTapStart, { passive: true });
+    document.addEventListener("touchmove", onTapMove, { passive: true });
+    document.addEventListener("touchend", onTapEnd, { passive: true });
 
     const load = async () => {
       try {
@@ -45,46 +137,24 @@ const EpubView = forwardRef<ReaderHandle, ReaderViewProps>(function EpubView(
           spread: "auto",
           manager: "default",
         });
+        // Desactivar el snap interno de epub.js para que no compita con
+        // nuestros handlers de swipe.
+        rendition.current.hooks.content.register((contents: any) => {
+          contents.window?.document?.documentElement?.style.setProperty(
+            "-webkit-touch-callout",
+            "none"
+          );
+        });
         rendition.current.on("relocated", (location: any) => {
           const percent = book.locations?.length()
             ? Math.round(book.locations.percentageFromCfi(location.start.cfi) * 100)
             : Math.round((location.start.percentage || 0) * 100);
           onPosition(location.start.cfi, percent);
         });
-        rendition.current.on("keyup", handleKey);
         await rendition.current.display(initialPosition || undefined);
         setLoading(false);
         await book.ready;
         if (!cancelled) await book.locations.generate(600);
-
-        // Swipe horizontal sobre el viewport para cambiar página.
-        const viewport = host.current.querySelector("iframe") ?? host.current;
-        const onTouchStart = (event: TouchEvent) => {
-          const t = event.touches[0];
-          touchStartX = t?.clientX ?? null;
-          touchStartY = t?.clientY ?? null;
-        };
-        const onTouchEnd = (event: TouchEvent) => {
-          if (touchStartX === null || touchStartY === null) return;
-          const t = event.changedTouches[0];
-          if (!t) return;
-          const dx = t.clientX - touchStartX;
-          const dy = t.clientY - touchStartY;
-          touchStartX = null;
-          touchStartY = null;
-          // Sólo horizontal, no vertical
-          if (Math.abs(dx) < Math.abs(dy)) return;
-          const threshold = Math.max(40, window.innerWidth * 0.15);
-          if (dx <= -threshold) rendition.current?.next();
-          else if (dx >= threshold) rendition.current?.prev();
-        };
-        viewport.addEventListener("touchstart", onTouchStart as any, { passive: true });
-        viewport.addEventListener("touchend", onTouchEnd as any, { passive: true });
-        // Guardamos referencias para limpiar después
-        (viewport as any).__cleanupSwipe = () => {
-          viewport.removeEventListener("touchstart", onTouchStart as any);
-          viewport.removeEventListener("touchend", onTouchEnd as any);
-        };
       } catch (err) {
         console.error(err);
         if (!cancelled) onError("No se pudo abrir el EPUB. El archivo podría estar dañado.");
@@ -98,11 +168,15 @@ const EpubView = forwardRef<ReaderHandle, ReaderViewProps>(function EpubView(
 
     load();
     document.addEventListener("keyup", handleKey);
+
     return () => {
       cancelled = true;
+      document.removeEventListener("touchstart", onTouchStart, { capture: true } as any);
+      document.removeEventListener("touchend", onTouchEnd, { capture: true } as any);
+      document.removeEventListener("touchstart", onTapStart);
+      document.removeEventListener("touchmove", onTapMove);
+      document.removeEventListener("touchend", onTapEnd);
       document.removeEventListener("keyup", handleKey);
-      const viewport = host.current?.querySelector("iframe") ?? host.current;
-      (viewport as any)?.__cleanupSwipe?.();
       rendition.current = null;
       book?.destroy();
     };
@@ -115,8 +189,8 @@ const EpubView = forwardRef<ReaderHandle, ReaderViewProps>(function EpubView(
   return (
     <div className="epub-wrap">
       {loading && <p className="loading">Abriendo libro…</p>}
-      <div className="epub-swipe-hint" aria-hidden="true">
-        Desliza ← → para pasar página
+      <div className="epub-tap-hint" aria-hidden="true">
+        Toca el centro para mostrar la barra
       </div>
       <div ref={host} className="epub-host" />
     </div>

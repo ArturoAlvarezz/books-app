@@ -103,3 +103,26 @@ def test_progress_and_bookmark_roundtrip(fresh_app: TestClient) -> None:
     assert fresh_app.get(
         f"/api/books/{book['id']}/bookmarks", headers=headers
     ).json()[0]["label"] == "Capítulo 2"
+
+
+def test_reextract_cover_requires_epub(fresh_app: TestClient) -> None:
+    """El endpoint de re-extracción sólo acepta EPUBs."""
+    headers = login(fresh_app)
+    book = fresh_app.post(
+        "/api/books",
+        headers=headers,
+        files={"file": ("notas.txt", BytesIO(b"hola"), "text/plain")},
+    ).json()
+
+    response = fresh_app.post(
+        f"/api/books/{book['id']}/reextract-cover", headers=headers
+    )
+    assert response.status_code == 400
+    assert "EPUB" in response.json()["detail"]
+
+
+def test_reextract_cover_404_when_missing(fresh_app: TestClient) -> None:
+    """Devuelve 404 si el libro no existe."""
+    headers = login(fresh_app)
+    response = fresh_app.post("/api/books/9999/reextract-cover", headers=headers)
+    assert response.status_code == 404

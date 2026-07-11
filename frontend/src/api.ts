@@ -120,6 +120,10 @@ export function saveProgress(bookId: number, progress: Progress): Promise<Progre
   return apiJson<Progress>(`/api/books/${bookId}/progress`, "POST", progress);
 }
 
+export function reextractCover(bookId: number): Promise<Book> {
+  return api<Book>(`/api/books/${bookId}/reextract-cover`, { method: "POST" });
+}
+
 /** Descarga el archivo del libro, usando la copia offline si existe. */
 export async function fetchBookFile(bookId: number): Promise<Blob> {
   const offline = await offlineBook(bookId);

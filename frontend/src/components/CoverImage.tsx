@@ -12,10 +12,14 @@ type Props = {
  *
  * Como <img src> no permite enviar Authorization, hacemos fetch autenticado
  * y creamos un Object URL en el cliente. Liberamos el blob al desmontar.
+ *
+ * Mientras carga, renderiza un skeleton para evitar el flash de portada
+ * editorial antes de que llegue la imagen real.
  */
 export default function CoverImage({ bookId, alt = "", className }: Props) {
   const [src, setSrc] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
@@ -34,6 +38,8 @@ export default function CoverImage({ bookId, alt = "", className }: Props) {
         if (!cancelled) setSrc(createdUrl);
       } catch {
         if (!cancelled) setFailed(true);
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     })();
     return () => {
@@ -42,7 +48,16 @@ export default function CoverImage({ bookId, alt = "", className }: Props) {
     };
   }, [bookId]);
 
-  if (failed || !src) return null;
+  if (failed) return null;
+  if (loading) {
+    return (
+      <div
+        className={className ? `${className} cover-img-skeleton` : "cover-img-skeleton"}
+        aria-hidden="true"
+      />
+    );
+  }
+  if (!src) return null;
   return (
     <img
       className={className ?? "cover-img"}

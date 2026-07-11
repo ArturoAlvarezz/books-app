@@ -73,29 +73,11 @@ export default function Reader({ book, onBack }: { book: Book; onBack: () => voi
   }, [chromeVisible]);
 
   // En móvil no hay scroll global (epubjs es un viewport), así que usamos
-  // touch: swipe-up revela la barra, swipe-down la oculta.
-  useEffect(() => {
-    let startY: number | null = null;
-    const onStart = (event: TouchEvent) => {
-      startY = event.touches[0]?.clientY ?? null;
-    };
-    const onMove = (event: TouchEvent) => {
-      if (startY === null) return;
-      const current = event.touches[0]?.clientY;
-      if (current === undefined) return;
-      const delta = current - startY;
-      if (Math.abs(delta) < 24) return;
-      if (delta > 0) setChromeVisible(true); // swipe hacia abajo = chrome visible
-      else setChromeVisible(false);
-      startY = null;
-    };
-    document.addEventListener("touchstart", onStart, { passive: true });
-    document.addEventListener("touchmove", onMove, { passive: true });
-    return () => {
-      document.removeEventListener("touchstart", onStart);
-      document.removeEventListener("touchmove", onMove);
-    };
-  }, []);
+  // tap en el centro de la pantalla (manejado por cada visor, no aquí).
+  // El listener de swipe-up anterior competía con epub.js y nunca disparaba
+  // cuando el usuario tocaba dentro del iframe del EPUB. Por eso lo
+  // eliminamos: ahora los visores (EpubView, PdfView) son responsables de
+  // pedirnos toggle del chrome mediante `onToggleChrome`.
 
   // En desktop también queremos que la barra se auto-oculte después de un
   // tiempo sin actividad.
@@ -199,6 +181,7 @@ export default function Reader({ book, onBack }: { book: Book; onBack: () => voi
             fontSize={fontSize}
             onPosition={handlePosition}
             onError={setError}
+            onToggleChrome={() => setChromeVisible((v) => !v)}
           />
         </div>
       )}

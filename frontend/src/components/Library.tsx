@@ -6,6 +6,7 @@ import {
   apiJson,
   Book,
   offlineBookIds,
+  reextractCover,
   removeOffline,
   saveOffline,
   uploadBook,
@@ -41,6 +42,7 @@ export default function Library({
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [busyOffline, setBusyOffline] = useState<number | null>(null);
+  const [busyCover, setBusyCover] = useState<number | null>(null);
   const [offlineIds, setOfflineIds] = useState<Set<number>>(new Set());
   const [online, setOnline] = useState(navigator.onLine);
   const [pendingDelete, setPendingDelete] = useState<Book | null>(null);
@@ -165,6 +167,19 @@ export default function Library({
     }
   };
 
+  const reextract = async (book: Book) => {
+    setBusyCover(book.id);
+    try {
+      const updated = await reextractCover(book.id);
+      flash(`Portada de «${updated.title}» extraída`);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo re-extraer la portada");
+    } finally {
+      setBusyCover(null);
+    }
+  };
+
   return (
     <main>
       <header className="topbar">
@@ -276,6 +291,17 @@ export default function Library({
               <button className="primary" onClick={() => onRead(book)}>
                 {book.progress.percent > 0 && book.read_state !== "finished" ? "Continuar" : "Leer"}
               </button>
+              {book.format === "EPUB" && !book.has_cover && (
+                <button
+                  className="icon-btn"
+                  onClick={() => reextract(book)}
+                  disabled={busyCover === book.id}
+                  aria-label="Re-extraer portada"
+                  title="Re-extraer portada"
+                >
+                  {busyCover === book.id ? "…" : "🖼"}
+                </button>
+              )}
               <button
                 className="icon-btn"
                 onClick={() => toggleOffline(book)}

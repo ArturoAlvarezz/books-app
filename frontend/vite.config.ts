@@ -11,6 +11,16 @@ export default defineConfig(() => ({
       },
     },
   },
+  // pdfjs-dist 4.x trae su propio worker. Vite lo sirve como static y
+  // necesita que no se pre-bundlee, y que copiemos el .mjs al directorio
+  // público en build (lo hace `vite-plugin-static-copy` vía include abajo,
+  // pero para mantener dependencias mínimas usamos `assetsInclude`).
+  optimizeDeps: {
+    exclude: ["pdfjs-dist"],
+  },
+  worker: {
+    format: "es" as const,
+  },
   plugins: [
     react(),
     VitePWA({

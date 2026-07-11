@@ -172,6 +172,32 @@ def db_session() -> Generator[Session, None, None]:
         db.close()
 
 
+_COVER_EXT_BY_MEDIA = {
+    "image/jpeg": ".jpg",
+    "image/png": ".png",
+    "image/webp": ".webp",
+    "image/gif": ".gif",
+}
+
+
+def _save_epub_cover(book_path: Path, sha_prefix: str) -> str | None:
+    """Extrae la portada de un EPUB y la escribe en disco.
+
+    Devuelve el nombre de archivo generado (sin path) o None si el libro
+    no tiene portada extraíble. Usado tanto en upload como en reextract.
+    """
+    cover = extract_epub_cover(book_path)
+    if not cover:
+        return None
+    media_type, cover_bytes = cover
+    ext = _COVER_EXT_BY_MEDIA.get(media_type)
+    if not ext:
+        return None
+    cover_name = f"{sha_prefix}{ext}"
+    (STORAGE_PATH / cover_name).write_bytes(cover_bytes)
+    return cover_name
+
+
 # JWT_SECRET y ADMIN_PASSWORD se inicializan perezosamente. Inicializarlos
 # al importar el módulo rompe scripts (Alembic, mantenimiento) que sólo
 # necesitan los modelos. `resolve_runtime_config()` los setea antes de
@@ -401,18 +427,7 @@ def upload_book(
         opf_title = extract_epub_title(stored_path, stem)
         if opf_title and opf_title != stem:
             title = opf_title
-        cover = extract_epub_cover(stored_path)
-        if cover:
-            media_type, cover_bytes = cover
-            ext = {
-                "image/jpeg": ".jpg",
-                "image/png": ".png",
-                "image/webp": ".webp",
-                "image/gif": ".gif",
-            }.get(media_type, ".img")
-            cover_name = f"{sha}{ext}"
-            (STORAGE_PATH / cover_name).write_bytes(cover_bytes)
-            cover_path = cover_name
+        cover_path = _save_epub_cover(stored_path, sha)
 
     book = Book(
         title=title,
@@ -496,6 +511,45 @@ def get_book_cover(
         ".gif": "image/gif",
     }.get(path.suffix.lower(), "application/octet-stream")
     return FileResponse(path, media_type=media, headers={"Cache-Control": "public, max-age=86400"})
+
+
+@app.post("/api/books/{book_id}/reextract-cover")
+def reextract_cover(
+    book_id: int, db: Session = Depends(db_session), _: User = Depends(current_user)
+):
+    """Re-extrae la portada de un libro (útil para libros subidos antes de
+    que existiera el extractor).
+
+    Sólo soporta EPUB por ahora. Borra cualquier cover anterior asociada.
+    Devuelve el libro serializado con `has_cover` actualizado.
+    """
+    book = require_book(book_id, db)
+    if book.format != "EPUB":
+        raise HTTPException(
+            400,
+            f"Sólo EPUBs soportan re-extracción de portada (este libro es {book.format}).",
+        )
+    stored_path = STORAGE_PATH / book.storage_name
+    if not stored_path.exists():
+        raise HTTPException(410, "El archivo del libro ya no está disponible")
+
+    # Borra el cover anterior si existía.
+    if book.cover_path:
+        (STORAGE_PATH / book.cover_path).unlink(missing_ok=True)
+        book.cover_path = None
+
+    new_cover = _save_epub_cover(stored_path, book.sha256)
+    if new_cover is None:
+        db.commit()
+        raise HTTPException(
+            422,
+            "No se pudo extraer una portada de este EPUB. "
+            "El archivo podría no tener imágenes válidas.",
+        )
+    book.cover_path = new_cover
+    db.commit()
+    db.refresh(book)
+    return serialize_book(book)
 
 
 @app.get("/api/books/{book_id}/file")
