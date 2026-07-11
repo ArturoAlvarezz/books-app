@@ -528,6 +528,21 @@ progress {
   touch-action: pan-y;
 }
 
+/* Reglas con !important para ganar al inline style que pone epub.js. */
+.epub-wrap[style] {
+  height: 100% !important;
+}
+.epub-wrap > .epub-container,
+.epub-wrap > .epub-container[style] {
+  height: 100% !important;
+  width: 100% !important;
+}
+.epub-wrap .epub-view,
+.epub-wrap .epub-view[style] {
+  height: 100% !important;
+  width: 100% !important;
+}
+
 .epub-host {
   height: 100%;
   width: 100%;
@@ -543,6 +558,9 @@ progress {
   width: 100% !important;
   height: 100% !important;
   display: block;
+  /* El iframe srcdoc de epub.js crea su propio viewport;
+     eliminamos cualquier scroll interno residual. */
+  overflow: hidden !important;
 }
 
 @keyframes epub-fade-in {

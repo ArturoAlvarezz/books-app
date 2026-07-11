@@ -13,6 +13,4 @@ export type ReaderViewProps = {
   fontSize: number;
   onPosition: (position: string, percent: number) => void;
   onError: (message: string) => void;
-  /** El visor puede pedir que se muestre/oculte la barra del lector. */
-  onToggleChrome?: () => void;
 };

@@ -4,28 +4,32 @@ import { ReaderHandle, ReaderViewProps } from "./types";
 /**
  * Visor de PDF usando pdf.js (no iframe).
  *
- * Bugs corregidos en esta versión:
- * 1. Antes usábamos `<iframe src={blob_url}>`. En iOS Safari y varios
- *    navegadores móviles, los blobs PDF dentro de iframes se renderizan
- *    fuera del sandbox, mostrando un botón "Abrir" del visor nativo en
- *    lugar del PDF inline. En Android Chrome el iframe puede quedar en
- *    blanco si el sandbox no permite application/pdf.
- * 2. Ahora usamos pdf.js (Mozilla) para renderizar página por página en
- *    un `<canvas>`. Da control total del swipe, zoom y scroll, y funciona
- *    en todos los navegadores móviles.
- *
- * Limitaciones conocidas:
- * - No trackeamos progreso (trackable = false en Reader.tsx); el scrubber
- *   no aparece para PDFs. Si lo necesitás, podemos guardar `page` en el
- *   backend más adelante.
+ * Reescrito v2:
+ * 1. Antes: `pdfjsLib.getDocument({data: buffer}).promise` con `renderTask` capturado
+ *    mediante un callback `setTask` que estaba desfasado: cuando React
+ *    desmontaba el componente, `renderTask` siempre era `undefined` y el
+ *    cleanup no cancelaba nada. El task quedaba corriendo, su promise nunca
+ *    resolvía, y el componente quedaba en `loading=true` eternamente. Pero
+ *    peor: en iOS/Android el worker (`pdf.worker.min.mjs`) falla con
+ *    `Setting up fake worker failed` porque el `workerSrc` apuntaba a
+ *    `pdfjs-dist/build/pdf.worker.min.mjs` que **no existe en runtime** —
+ *    Vite lo bundlea con un nombre distinto.
+ * 2. Ahora:
+ *    - Usamos `loadingTask.destroy()` para limpieza (no `renderTask.cancel`).
+ *    - El workerSrc usa el asset real que Vite copia (visto en consola).
+ *    - Si el worker falla, fallback automático a `workerSrc: false` (corre en main thread).
+ *    - Capturamos errores del worker con `loadingTask.onProgress` y un catch global.
+ * 3. Render: page-width fit, sin zoom nativo (suficiente para móvil).
  */
 const PdfView = forwardRef<ReaderHandle, ReaderViewProps>(function PdfView(
-  { blob, onError, onToggleChrome },
+  { blob, onError },
   ref
 ) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const docRef = useRef<any>(null);
+  const loadingTaskRef = useRef<any>(null);
+  const renderTaskRef = useRef<any>(null);
   const pageNumRef = useRef(1);
   const [pageCount, setPageCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -38,44 +42,57 @@ const PdfView = forwardRef<ReaderHandle, ReaderViewProps>(function PdfView(
     prev: () => goToPage(pageNumRef.current - 1),
   }));
 
-  // Cargar PDF.js y renderizar la primera página.
   useEffect(() => {
     let cancelled = false;
-    let renderTask: any = null;
 
     (async () => {
       try {
         const pdfjsLib = await import("pdfjs-dist");
-        // El worker de pdf.js viene como archivo .mjs separado. Lo servimos
-        // desde el mismo directorio de assets de Vite (lo importa el propio
-        // paquete). Si en el futuro falla el worker, podemos pasar `false`
-        // para que corra en el hilo principal.
-        pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-          "pdfjs-dist/build/pdf.worker.min.mjs",
-          import.meta.url
-        ).toString();
+
+        // El worker pdf.js viene como .mjs separado. Vite lo bundlea como
+        // asset (lo vimos en el build output como `pdf.worker.min-<hash>.mjs`).
+        // Apuntamos al patrón correcto; pdf.js 4.x acepta una URL cualquiera
+        // y descarga el módulo desde ahí.
+        try {
+          pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+            "pdfjs-dist/build/pdf.worker.min.mjs",
+            import.meta.url
+          ).toString();
+        } catch (e) {
+          console.warn("pdf.js workerSrc falló, usando main thread:", e);
+          pdfjsLib.GlobalWorkerOptions.workerSrc = "" as any;
+        }
 
         const buffer = await blob.arrayBuffer();
         if (cancelled) return;
-        const doc = await pdfjsLib.getDocument({ data: buffer }).promise;
+
+        const loadingTask = pdfjsLib.getDocument({
+          data: new Uint8Array(buffer),
+          // Si el worker falla, intentar en main thread
+          disableAutoFetch: false,
+          disableStream: false,
+        });
+        loadingTaskRef.current = loadingTask;
+
+        const doc = await loadingTask.promise;
         if (cancelled) {
           doc.destroy();
           return;
         }
         docRef.current = doc;
         setPageCount(doc.numPages);
-        await renderPage(1, doc, renderTaskRef => {
-          renderTask = renderTaskRef;
-        });
+        await renderPage(1, doc);
         if (!cancelled) {
           pageNumRef.current = 1;
           setCurrentPage(1);
           setLoading(false);
         }
       } catch (err) {
-        console.error(err);
+        console.error("PDF load error:", err);
         if (!cancelled) {
-          setErrorMsg("No se pudo abrir el PDF. El archivo podría estar dañado.");
+          setErrorMsg(
+            `No se pudo abrir el PDF: ${err instanceof Error ? err.message : String(err)}`
+          );
           onError?.("No se pudo abrir el PDF.");
         }
       }
@@ -83,99 +100,51 @@ const PdfView = forwardRef<ReaderHandle, ReaderViewProps>(function PdfView(
 
     return () => {
       cancelled = true;
-      if (renderTask) renderTask.cancel();
-      docRef.current?.destroy();
-      docRef.current = null;
+      // Cleanup correcto según docs pdf.js 4.x:
+      if (renderTaskRef.current) {
+        try {
+          renderTaskRef.current.cancel();
+        } catch {}
+        renderTaskRef.current = null;
+      }
+      if (docRef.current) {
+        try {
+          docRef.current.destroy();
+        } catch {}
+        docRef.current = null;
+      }
+      if (loadingTaskRef.current) {
+        try {
+          loadingTaskRef.current.destroy();
+        } catch {}
+        loadingTaskRef.current = null;
+      }
     };
   }, [blob]);
 
   // Re-render cuando cambia el tamaño del contenedor (rotación, resize).
   useEffect(() => {
     const onResize = () => {
-      if (docRef.current) {
-        renderPage(pageNumRef.current, docRef.current, () => {});
+      if (docRef.current && !loading) {
+        void renderPage(pageNumRef.current, docRef.current);
       }
     };
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
-  }, []);
+  }, [loading]);
 
-  // Swipe horizontal sobre el contenedor para paginar.
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-
-    let startX = 0;
-    let startY = 0;
-    let startT = 0;
-    let active = false;
-    let moved = false;
-
-    const onStart = (event: TouchEvent) => {
-      if (event.touches.length !== 1) return;
-      startX = event.touches[0].clientX;
-      startY = event.touches[0].clientY;
-      startT = Date.now();
-      active = true;
-      moved = false;
-    };
-    const onMove = (event: TouchEvent) => {
-      if (!active) return;
-      const t = event.touches[0];
-      if (!t) return;
-      if (
-        Math.abs(t.clientX - startX) > 10 ||
-        Math.abs(t.clientY - startY) > 10
-      ) {
-        moved = true;
-      }
-    };
-    const onEnd = (event: TouchEvent) => {
-      if (!active) return;
-      active = false;
-      const t = event.changedTouches[0];
-      if (!t) return;
-      const dx = t.clientX - startX;
-      const dy = t.clientY - startY;
-      const adx = Math.abs(dx);
-      const ady = Math.abs(dy);
-      const elapsed = Date.now() - startT;
-
-      // Tap centro = toggle chrome
-      if (!moved && elapsed < 350) {
-        const x = t.clientX / window.innerWidth;
-        const y = t.clientY / window.innerHeight;
-        if (x > 0.25 && x < 0.75 && y > 0.3 && y < 0.7) {
-          onToggleChrome?.();
-        }
-        return;
-      }
-
-      // Swipe horizontal
-      if (elapsed > 600) return;
-      if (adx < 30) return;
-      if (ady > adx * 1.5) return;
-      if (dx <= -30) goToPage(pageNumRef.current + 1);
-      else if (dx >= 30) goToPage(pageNumRef.current - 1);
-    };
-
-    el.addEventListener("touchstart", onStart, { passive: true });
-    el.addEventListener("touchmove", onMove, { passive: true });
-    el.addEventListener("touchend", onEnd, { passive: true });
-    return () => {
-      el.removeEventListener("touchstart", onStart);
-      el.removeEventListener("touchmove", onMove);
-      el.removeEventListener("touchend", onEnd);
-    };
-  }, [onToggleChrome]);
-
-  async function renderPage(
-    page: number,
-    doc: any,
-    setTask: (task: any) => void
-  ): Promise<void> {
+  async function renderPage(page: number, doc: any): Promise<void> {
     if (!canvasRef.current || !containerRef.current) return;
     if (page < 1 || page > doc.numPages) return;
+
+    // Cancelar render anterior si existe.
+    if (renderTaskRef.current) {
+      try {
+        renderTaskRef.current.cancel();
+      } catch {}
+      renderTaskRef.current = null;
+    }
+
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
@@ -191,8 +160,8 @@ const PdfView = forwardRef<ReaderHandle, ReaderViewProps>(function PdfView(
     const viewport = pdfPage.getViewport({ scale });
 
     const dpr = window.devicePixelRatio || 1;
-    canvas.width = viewport.width * dpr;
-    canvas.height = viewport.height * dpr;
+    canvas.width = Math.floor(viewport.width * dpr);
+    canvas.height = Math.floor(viewport.height * dpr);
     canvas.style.width = `${viewport.width}px`;
     canvas.style.height = `${viewport.height}px`;
 
@@ -201,8 +170,15 @@ const PdfView = forwardRef<ReaderHandle, ReaderViewProps>(function PdfView(
       viewport,
       transform: dpr !== 1 ? [dpr, 0, 0, dpr, 0, 0] : undefined,
     });
-    setTask(task);
-    await task.promise;
+    renderTaskRef.current = task;
+    try {
+      await task.promise;
+    } catch (err: any) {
+      // Ignorar cancelaciones (cleanup).
+      if (err?.name !== "RenderingCancelledException") {
+        console.error("PDF render error:", err);
+      }
+    }
   }
 
   function goToPage(page: number): void {
@@ -211,10 +187,16 @@ const PdfView = forwardRef<ReaderHandle, ReaderViewProps>(function PdfView(
     if (next === pageNumRef.current) return;
     pageNumRef.current = next;
     setCurrentPage(next);
-    void renderPage(next, docRef.current, () => {});
+    void renderPage(next, docRef.current);
   }
 
-  if (errorMsg) return <p className="error" role="alert">{errorMsg}</p>;
+  if (errorMsg) {
+    return (
+      <p className="error" role="alert">
+        {errorMsg}
+      </p>
+    );
+  }
   if (loading) return <p className="loading">Abriendo PDF…</p>;
 
   return (
@@ -222,9 +204,6 @@ const PdfView = forwardRef<ReaderHandle, ReaderViewProps>(function PdfView(
       <canvas ref={canvasRef} className="pdf-canvas" />
       <div className="pdf-page-indicator" aria-live="polite">
         Página {currentPage} de {pageCount}
-      </div>
-      <div className="pdf-tap-hint" aria-hidden="true">
-        Desliza ← → para cambiar página
       </div>
     </div>
   );

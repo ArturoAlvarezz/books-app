@@ -146,6 +146,41 @@ export default function Reader({ book, onBack }: { book: Book; onBack: () => voi
     }
   };
 
+  /**
+   * Tap centro = toggle del chrome (mostrar/ocultar la barra inferior).
+   *
+   * Lo manejamos acá, no en cada visor, para que sea uniforme entre EPUB,
+   * PDF, TXT y CBZ. Se activa con `onPointerUp` sobre `.reading`, pero sólo
+   * si no hubo swipe (los visores ya consumieron el swipe con stopPropagation,
+   * así que cuando este handler corre es porque NO fue swipe).
+   */
+  const tapStartRef = useRef<{ x: number; y: number; t: number; el: Element } | null>(null);
+  const handleReadingPointerDown = (event: React.PointerEvent) => {
+    if (!event.isPrimary) return;
+    tapStartRef.current = {
+      x: event.clientX,
+      y: event.clientY,
+      t: Date.now(),
+      el: event.currentTarget,
+    };
+  };
+  const handleReadingTap = (event: React.PointerEvent) => {
+    const start = tapStartRef.current;
+    tapStartRef.current = null;
+    if (!start) return;
+    if (Date.now() - start.t > 350) return; // demasiado largo = no tap
+    const dx = Math.abs(event.clientX - start.x);
+    const dy = Math.abs(event.clientY - start.y);
+    if (dx > 12 || dy > 12) return; // se movió = fue swipe, lo manejó el visor
+    // Zona central: 25-75% horizontal, 25-75% vertical.
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    const x = (event.clientX - rect.left) / rect.width;
+    const y = (event.clientY - rect.top) / rect.height;
+    if (x > 0.25 && x < 0.75 && y > 0.25 && y < 0.75) {
+      setChromeVisible((v) => !v);
+    }
+  };
+
   const View = VIEWS[book.format];
   const trackable = book.format !== "PDF";
 
@@ -173,7 +208,7 @@ export default function Reader({ book, onBack }: { book: Book; onBack: () => voi
       {error && <p className="error" role="alert">{error}</p>}
       {!blob && !error && <p className="loading" role="status" aria-live="polite">Descargando libro…</p>}
       {blob && (
-        <div className="reading">
+        <div className="reading" onPointerDown={handleReadingPointerDown} onPointerUp={handleReadingTap}>
           <View
             ref={view}
             blob={blob}
@@ -181,7 +216,6 @@ export default function Reader({ book, onBack }: { book: Book; onBack: () => voi
             fontSize={fontSize}
             onPosition={handlePosition}
             onError={setError}
-            onToggleChrome={() => setChromeVisible((v) => !v)}
           />
         </div>
       )}
