@@ -1,6 +1,15 @@
 import { ChangeEvent, CSSProperties, useCallback, useEffect, useRef, useState } from "react";
 import Dialog from "./Dialog";
-import { api, apiJson, Book, offlineBookIds, removeOffline, saveOffline } from "../api";
+import CoverImage from "./CoverImage";
+import {
+  api,
+  apiJson,
+  Book,
+  offlineBookIds,
+  removeOffline,
+  saveOffline,
+  uploadBook,
+} from "../api";
 import { formatBytes } from "../lib";
 
 const READ_LABELS: Record<Book["read_state"], string> = {
@@ -30,11 +39,15 @@ export default function Library({
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [busyOffline, setBusyOffline] = useState<number | null>(null);
   const [offlineIds, setOfflineIds] = useState<Set<number>>(new Set());
   const [online, setOnline] = useState(navigator.onLine);
   const [pendingDelete, setPendingDelete] = useState<Book | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  // Bumped when the user re-focuses / re-connects so we can refetch outside the
+  // debounced query effect.
+  const [refreshTick, setRefreshTick] = useState(0);
 
   const load = useCallback(async () => {
     const params = new URLSearchParams();
@@ -55,17 +68,34 @@ export default function Library({
     return () => window.clearTimeout(timer);
   }, [load, query]);
 
+  // Auto-refresh cuando el usuario vuelve a la pestaña o recupera conexión.
   useEffect(() => {
-    offlineBookIds().then(setOfflineIds).catch(() => {});
-    const goOnline = () => setOnline(true);
-    const goOffline = () => setOnline(false);
-    window.addEventListener("online", goOnline);
-    window.addEventListener("offline", goOffline);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") {
+        setRefreshTick((tick) => tick + 1);
+        offlineBookIds().then(setOfflineIds).catch(() => {});
+      }
+    };
+    const onOnline = () => {
+      setOnline(true);
+      setRefreshTick((tick) => tick + 1);
+    };
+    const onOffline = () => setOnline(false);
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("online", onOnline);
+    window.addEventListener("offline", onOffline);
     return () => {
-      window.removeEventListener("online", goOnline);
-      window.removeEventListener("offline", goOffline);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("offline", onOffline);
     };
   }, []);
+
+  useEffect(() => {
+    // refreshTick fuerza un refetch cuando cambia.
+    void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshTick]);
 
   const flash = (message: string) => {
     setNotice(message);
@@ -76,17 +106,20 @@ export default function Library({
     const file = event.target.files?.[0];
     if (!file) return;
     setUploading(true);
+    setUploadProgress(0);
     setError("");
-    const body = new FormData();
-    body.append("file", file);
     try {
-      const book = await api<Book>("/api/books", { method: "POST", body });
+      const book = await uploadBook(file, (loaded, total) => {
+        setUploadProgress(Math.round((loaded / total) * 100));
+      });
       flash(`«${book.title}» añadido a tu biblioteca`);
-      load();
+      // Refresca inmediatamente, sin esperar al debounce.
+      await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo subir el libro");
     } finally {
       setUploading(false);
+      setUploadProgress(0);
       if (fileInput.current) fileInput.current.value = "";
     }
   };
@@ -135,7 +168,7 @@ export default function Library({
   return (
     <main>
       <header className="topbar">
-        <h1>📚 Mis Libros</h1>
+        <h1>Mis Libros</h1>
         <span className={online ? "status online" : "status offline"}>
           {online ? "● En línea" : "● Sin conexión"}
         </span>
@@ -162,8 +195,9 @@ export default function Library({
           className={uploading ? "upload busy" : "upload"}
           onClick={() => fileInput.current?.click()}
           disabled={uploading}
+          aria-busy={uploading}
         >
-          {uploading ? "Subiendo…" : "+ Subir libro"}
+          {uploading ? `Subiendo… ${uploadProgress}%` : "+ Subir libro"}
         </button>
         <input
           ref={fileInput}
@@ -175,6 +209,19 @@ export default function Library({
           aria-label="Seleccionar libro para subir"
         />
       </section>
+
+      {uploading && (
+        <div
+          className="upload-progress"
+          role="progressbar"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={uploadProgress}
+          aria-label="Progreso de subida"
+        >
+          <div className="upload-progress-bar" style={{ width: `${uploadProgress}%` }} />
+        </div>
+      )}
 
       <nav className="filters" aria-label="Filtros">
         {(
@@ -201,7 +248,13 @@ export default function Library({
       <section className="grid">
         {books.map((book) => (
           <article className="card" key={book.id}>
-            <button className="cover" style={coverStyle(book.title)} onClick={() => onRead(book)} aria-label={`Leer ${book.title}`}>
+            <button
+              className="cover"
+              style={coverStyle(book.title)}
+              onClick={() => onRead(book)}
+              aria-label={`Leer ${book.title}`}
+            >
+              {book.has_cover ? <CoverImage bookId={book.id} /> : null}
               <span className="cover-format">{book.format}</span>
               <span className="cover-title">{book.title}</span>
               <span className="cover-spine" aria-hidden="true" />
@@ -224,22 +277,33 @@ export default function Library({
                 {book.progress.percent > 0 && book.read_state !== "finished" ? "Continuar" : "Leer"}
               </button>
               <button
+                className="icon-btn"
                 onClick={() => toggleOffline(book)}
                 disabled={busyOffline === book.id}
-                aria-label={offlineIds.has(book.id) ? "Quitar descarga" : "Descargar para leer sin conexión"}
+                aria-label={
+                  offlineIds.has(book.id)
+                    ? "Quitar descarga"
+                    : "Descargar para leer sin conexión"
+                }
                 title={offlineIds.has(book.id) ? "Quitar descarga" : "Descargar para leer sin conexión"}
               >
                 {busyOffline === book.id ? "…" : offlineIds.has(book.id) ? "✓" : "↓"}
               </button>
               <button
+                className="icon-btn"
                 onClick={() => toggleFavorite(book)}
                 aria-label={book.favorite ? "Quitar de favoritos" : "Añadir a favoritos"}
                 title="Favorito"
               >
                 {book.favorite ? "★" : "☆"}
               </button>
-              <button onClick={() => setPendingDelete(book)} aria-label={`Eliminar ${book.title}`} title="Eliminar">
-                🗑
+              <button
+                className="icon-btn danger"
+                onClick={() => setPendingDelete(book)}
+                aria-label={`Eliminar ${book.title}`}
+                title="Eliminar"
+              >
+                ✕
               </button>
             </div>
           </article>

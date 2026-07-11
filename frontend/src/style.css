@@ -208,6 +208,21 @@ button.primary:hover,
   background: repeating-linear-gradient(90deg, transparent 0 17px, rgb(255 255 255 / 0.035) 18px);
 }
 
+.cover-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+  background: hsl(var(--cover-hue) 28% 22%);
+}
+
+.cover:has(.cover-img) .cover-format,
+.cover:has(.cover-img) .cover-title {
+  display: none;
+}
+
 .cover-spine {
   position: absolute;
   inset: 0 auto 0 0;
@@ -295,6 +310,22 @@ progress {
   padding: 8px 10px;
 }
 
+.upload-progress {
+  position: relative;
+  height: 4px;
+  width: 100%;
+  background: var(--surface);
+  border-radius: 999px;
+  overflow: hidden;
+  margin-top: -4px;
+}
+
+.upload-progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), #6ee5c5);
+  transition: width 80ms linear;
+}
+
 .empty {
   text-align: center;
   color: var(--text-dim);
@@ -357,7 +388,7 @@ progress {
   display: flex;
   flex-direction: column;
   height: 100dvh;
-  padding-bottom: 12px;
+  padding-bottom: 0;
 }
 
 .reader-bar {
@@ -366,6 +397,51 @@ progress {
   align-items: center;
   flex-wrap: wrap;
   padding-bottom: 12px;
+}
+
+.reader-bar-top {
+  flex-shrink: 0;
+}
+
+.reader-bar-bottom {
+  position: sticky;
+  bottom: 0;
+  flex-shrink: 0;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  padding: 10px 12px calc(env(safe-area-inset-bottom, 0px) + 10px);
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  border-radius: 12px 12px 0 0;
+  margin-top: 10px;
+  transition: transform 220ms ease, opacity 220ms ease;
+}
+
+.reader.chrome-hidden .reader-bar-bottom {
+  transform: translateY(calc(100% + 12px));
+  opacity: 0;
+  pointer-events: none;
+}
+
+.reader.chrome-hidden .reader-bar-top {
+  transform: translateY(-120%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.reader-bar-top {
+  transition: transform 220ms ease, opacity 220ms ease;
+}
+
+.scrubber {
+  width: 100%;
+}
+
+.scrubber input[type="range"] {
+  width: 100%;
+  accent-color: var(--accent);
+  height: 24px;
 }
 
 .reader-bar h1 {
@@ -443,32 +519,41 @@ progress {
 .epub-wrap {
   position: relative;
   height: 100%;
+  overflow: hidden;
 }
 
 .epub-host {
   height: 100%;
-  padding: 0 44px;
+  padding: 0 8px;
+  animation: epub-fade-in 220ms ease;
 }
 
-.page-nav {
+@keyframes epub-fade-in {
+  from { opacity: 0.6; }
+  to { opacity: 1; }
+}
+
+.epub-swipe-hint {
   position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 2;
-  width: 38px;
-  height: 64px;
-  font-size: 26px;
-  background: rgba(0, 0, 0, 0.25);
-  color: #fff;
-  border: 0;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 12px;
+  color: var(--text-dim);
+  background: var(--surface);
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  pointer-events: none;
+  opacity: 0;
+  animation: epub-hint-show 4s ease 1s forwards;
 }
 
-.page-nav.prev {
-  left: 4px;
-}
-
-.page-nav.next {
-  right: 4px;
+@keyframes epub-hint-show {
+  0% { opacity: 0; }
+  10% { opacity: 0.85; }
+  85% { opacity: 0.85; }
+  100% { opacity: 0; }
 }
 
 /* TXT */
@@ -524,11 +609,13 @@ progress {
   }
 
   .grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
   }
 
   .card {
     padding: 10px;
+    min-width: 0;
   }
 
   .cover {
@@ -536,7 +623,65 @@ progress {
   }
 
   .epub-host {
-    padding: 0 36px;
+    padding: 0 4px;
+  }
+
+  .card-actions {
+    flex-wrap: wrap;
+  }
+
+  .card-actions .primary {
+    flex: 1 1 100%;
+    min-width: 0;
+    margin-bottom: 4px;
+  }
+
+  .card-actions .icon-btn {
+    flex: 1 1 0;
+    min-width: 44px;
+  }
+
+  .topbar {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .topbar h1 {
+    width: 100%;
+    font-size: 20px;
+  }
+
+  .actions {
+    flex-wrap: wrap;
+  }
+
+  .actions input[type="search"] {
+    flex: 1 1 100%;
+  }
+
+  .reader-bar-top h1 {
+    font-size: 15px;
+  }
+}
+
+@media (max-width: 379px) {
+  .grid { grid-template-columns: 1fr; }
+  .card-actions .primary { flex: 1 1 100%; }
+}
+
+@media (min-width: 380px) and (max-width: 719px) {
+  .grid { grid-template-columns: repeat(auto-fit, minmax(155px, 1fr)); }
+}
+
+@media (max-width: 600px) {
+  .chip, .card-actions button, .reader-tools button { min-height: 44px; }
+  .cover { height: 142px; }
+}
+
+@media (hover: none) and (pointer: coarse) {
+  /* Táctil puro: el scrubber debe ser alto y fácil de tocar */
+  .scrubber input[type="range"] {
+    height: 32px;
   }
 }
 
@@ -562,21 +707,3 @@ progress {
 .dialog h2, .dialog-body p { margin-top: 0; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
 button.danger { background: #b8465d; border-color: #b8465d; color: #fff; }
-
-@media (max-width: 379px) {
-  .topbar { flex-wrap: wrap; }
-  .topbar h1 { width: 100%; }
-  .grid { grid-template-columns: 1fr; }
-  .card-actions { flex-wrap: wrap; }
-  .card-actions .primary { min-width: 100%; }
-}
-
-@media (min-width: 380px) and (max-width: 719px) {
-  .topbar { flex-wrap: wrap; }
-  .grid { grid-template-columns: repeat(auto-fit, minmax(155px, 1fr)); }
-}
-
-@media (max-width: 600px) {
-  .chip, .card-actions button, .reader-tools button { min-height: 44px; }
-  .cover { height: 142px; }
-}

@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" role="img" aria-label="Mis Libros">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5b3fb5"/>
+      <stop offset="1" stop-color="#241546"/>
+    </linearGradient>
+    <linearGradient id="page" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fbf6e7"/>
+      <stop offset="1" stop-color="#ead7a8"/>
+    </linearGradient>
+  </defs>
+  <rect width="192" height="192" rx="36" fill="url(#bg)"/>
+  <path d="M96 36 Q96 36 96 156" stroke="rgb(255 255 255 / 0.08)" stroke-width="1"/>
+  <path d="M36 50 Q66 42 93 54 L93 146 Q66 138 36 146 Z" fill="url(#page)"/>
+  <path d="M156 50 Q126 42 99 54 L99 146 Q126 138 156 146 Z" fill="url(#page)"/>
+  <path d="M93 54 Q96 51 99 54 L99 146 Q96 144 93 146 Z" fill="#d8c189" opacity="0.45"/>
+  <path d="M44 70 Q66 64 84 71" stroke="#5b3fb5" stroke-width="2.5" stroke-linecap="round" fill="none" opacity="0.55"/>
+  <path d="M44 84 Q66 78 84 85" stroke="#5b3fb5" stroke-width="2.5" stroke-linecap="round" fill="none" opacity="0.45"/>
+  <path d="M44 98 Q66 92 84 99" stroke="#5b3fb5" stroke-width="2.5" stroke-linecap="round" fill="none" opacity="0.35"/>
+  <path d="M108 70 Q130 64 148 71" stroke="#5b3fb5" stroke-width="2.5" stroke-linecap="round" fill="none" opacity="0.55"/>
+  <path d="M108 84 Q130 78 148 85" stroke="#5b3fb5" stroke-width="2.5" stroke-linecap="round" fill="none" opacity="0.45"/>
+  <path d="M108 98 Q130 92 148 99" stroke="#5b3fb5" stroke-width="2.5" stroke-linecap="round" fill="none" opacity="0.35"/>
+  <path d="M130 36 L130 84 L138 78 L146 84 L146 36 Z" fill="#e84a6f"/>
+  <path d="M130 36 L146 36 L146 44 L130 44 Z" fill="#c9305a"/>
+</svg>

@@ -1,1 +1,36 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="90" fill="#7057d9"/><path d="M120 110h230v290H120z" fill="#f5ecd7"/><path d="M155 155h160M155 215h160M155 275h110" stroke="#31265f" stroke-width="22" stroke-linecap="round"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Mis Libros">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5b3fb5"/>
+      <stop offset="1" stop-color="#241546"/>
+    </linearGradient>
+    <linearGradient id="page" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fbf6e7"/>
+      <stop offset="1" stop-color="#ead7a8"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="96" fill="url(#bg)"/>
+  <!-- Book spine shadow -->
+  <path d="M256 96 C256 96 256 416 256 416" stroke="rgb(255 255 255 / 0.08)" stroke-width="2"/>
+  <!-- Left page -->
+  <path d="M96 132 Q176 112 248 144 L248 388 Q176 360 96 380 Z" fill="url(#page)"/>
+  <!-- Right page -->
+  <path d="M416 132 Q336 112 264 144 L264 388 Q336 360 416 380 Z" fill="url(#page)"/>
+  <!-- Center fold -->
+  <path d="M248 144 Q256 138 264 144 L264 388 Q256 384 248 388 Z" fill="#d8c189" opacity="0.45"/>
+  <!-- Lines on left page -->
+  <path d="M118 184 Q170 170 220 188" stroke="#5b3fb5" stroke-width="6" stroke-linecap="round" fill="none" opacity="0.55"/>
+  <path d="M118 224 Q170 210 220 228" stroke="#5b3fb5" stroke-width="6" stroke-linecap="round" fill="none" opacity="0.45"/>
+  <path d="M118 264 Q170 250 220 268" stroke="#5b3fb5" stroke-width="6" stroke-linecap="round" fill="none" opacity="0.35"/>
+  <path d="M118 304 Q160 294 200 308" stroke="#5b3fb5" stroke-width="6" stroke-linecap="round" fill="none" opacity="0.25"/>
+  <!-- Lines on right page -->
+  <path d="M292 184 Q342 170 394 188" stroke="#5b3fb5" stroke-width="6" stroke-linecap="round" fill="none" opacity="0.55"/>
+  <path d="M292 224 Q342 210 394 228" stroke="#5b3fb5" stroke-width="6" stroke-linecap="round" fill="none" opacity="0.45"/>
+  <path d="M292 264 Q342 250 394 268" stroke="#5b3fb5" stroke-width="6" stroke-linecap="round" fill="none" opacity="0.35"/>
+  <path d="M292 304 Q342 294 392 308" stroke="#5b3fb5" stroke-width="6" stroke-linecap="round" fill="none" opacity="0.25"/>
+  <!-- Bookmark ribbon -->
+  <path d="M348 96 L348 224 L370 208 L392 224 L392 96 Z" fill="#e84a6f"/>
+  <path d="M348 96 L392 96 L392 116 L348 116 Z" fill="#c9305a"/>
+  <!-- Decorative star above book -->
+  <path d="M256 64 l4 12 12 0 -10 8 4 12 -10 -8 -10 8 4 -12 -10 -8 12 0 z" fill="#ffd766"/>
+</svg>

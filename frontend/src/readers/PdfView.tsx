@@ -5,7 +5,11 @@ import { ReaderHandle, ReaderViewProps } from "./types";
 const PdfView = forwardRef<ReaderHandle, ReaderViewProps>(function PdfView({ blob }, ref) {
   const [url, setUrl] = useState("");
 
-  useImperativeHandle(ref, () => ({ goTo: () => undefined }));
+  useImperativeHandle(ref, () => ({
+    goTo: () => undefined,
+    next: () => undefined,
+    prev: () => undefined,
+  }));
 
   useEffect(() => {
     const objectUrl = URL.createObjectURL(blob);

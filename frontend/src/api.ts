@@ -11,6 +11,7 @@ export type Book = {
   size_bytes: number;
   read_state: "unread" | "reading" | "finished";
   favorite: boolean;
+  has_cover: boolean;
   created_at: string;
   progress: Progress;
 };
@@ -67,6 +68,39 @@ export function apiJson<T = unknown>(path: string, method: string, body: unknown
     method,
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
+  });
+}
+
+export type UploadProgress = (loaded: number, total: number) => void;
+
+export function uploadBook(file: File, onProgress?: UploadProgress): Promise<Book> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", "/api/books");
+    xhr.setRequestHeader("Authorization", `Bearer ${getToken()}`);
+    xhr.responseType = "json";
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable) onProgress?.(event.loaded, event.total);
+    };
+    xhr.onload = () => {
+      const body = xhr.response;
+      if (xhr.status === 401) {
+        setToken("");
+        onSessionExpired?.();
+        reject(new SessionExpiredError());
+        return;
+      }
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(body as Book);
+      } else {
+        reject(new Error(typeof body?.detail === "string" ? body.detail : `Error ${xhr.status}`));
+      }
+    };
+    xhr.onerror = () => reject(new Error("Error de red al subir el archivo"));
+    xhr.ontimeout = () => reject(new Error("Tiempo de espera agotado al subir"));
+    const data = new FormData();
+    data.append("file", file);
+    xhr.send(data);
   });
 }
 

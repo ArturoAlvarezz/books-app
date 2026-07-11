@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api, apiJson, Book, Bookmark, fetchBookFile, saveProgress } from "../api";
 import CbzView from "../readers/CbzView";
 import EpubView from "../readers/EpubView";
@@ -8,6 +8,8 @@ import { ReaderHandle } from "../readers/types";
 
 const VIEWS = { EPUB: EpubView, PDF: PdfView, CBZ: CbzView, TXT: TxtView };
 const SAVE_INTERVAL_MS = 3000;
+const MIN_FONT = 10;
+const MAX_FONT = 36;
 
 export default function Reader({ book, onBack }: { book: Book; onBack: () => void }) {
   const [blob, setBlob] = useState<Blob | null>(null);
@@ -15,20 +17,22 @@ export default function Reader({ book, onBack }: { book: Book; onBack: () => voi
   const [percent, setPercent] = useState(book.progress.percent);
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
   const [showMarks, setShowMarks] = useState(false);
-  const [fontSize, setFontSize] = useState(() => Number(localStorage.getItem("fontSize")) || 18);
+  const [fontSize, setFontSize] = useState(() => {
+    const stored = Number(localStorage.getItem("fontSize"));
+    return stored >= MIN_FONT && stored <= MAX_FONT ? stored : 18;
+  });
+  const [chromeVisible, setChromeVisible] = useState(true);
 
   const view = useRef<ReaderHandle>(null);
   const position = useRef(book.progress.position);
   const pending = useRef(false);
   const saveTimer = useRef<number | undefined>(undefined);
+  const chromeTimer = useRef<number | undefined>(undefined);
+  const scrollY = useRef(0);
 
   useEffect(() => {
-    fetchBookFile(book.id)
-      .then(setBlob)
-      .catch((err) => setError(err.message));
-    api<Bookmark[]>(`/api/books/${book.id}/bookmarks`)
-      .then(setBookmarks)
-      .catch(() => setBookmarks([]));
+    fetchBookFile(book.id).then(setBlob).catch((err) => setError(err.message));
+    api<Bookmark[]>(`/api/books/${book.id}/bookmarks`).then(setBookmarks).catch(() => setBookmarks([]));
   }, [book.id]);
 
   // Guarda el progreso como máximo cada pocos segundos y al salir.
@@ -50,17 +54,91 @@ export default function Reader({ book, onBack }: { book: Book; onBack: () => voi
     };
   }, [book.id]);
 
+  // Auto-hide de la barra inferior al detectar gesto de scroll hacia abajo;
+  // reaparece con scroll hacia arriba.
+  useEffect(() => {
+    const onScroll = () => {
+      const current = window.scrollY;
+      const delta = current - scrollY.current;
+      if (Math.abs(delta) < 4) return; // ignorar micro-movimientos
+      if (delta < 0) {
+        setChromeVisible(true);
+      } else if (delta > 0 && chromeVisible) {
+        setChromeVisible(false);
+      }
+      scrollY.current = current;
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [chromeVisible]);
+
+  // En móvil no hay scroll global (epubjs es un viewport), así que usamos
+  // touch: swipe-up revela la barra, swipe-down la oculta.
+  useEffect(() => {
+    let startY: number | null = null;
+    const onStart = (event: TouchEvent) => {
+      startY = event.touches[0]?.clientY ?? null;
+    };
+    const onMove = (event: TouchEvent) => {
+      if (startY === null) return;
+      const current = event.touches[0]?.clientY;
+      if (current === undefined) return;
+      const delta = current - startY;
+      if (Math.abs(delta) < 24) return;
+      if (delta > 0) setChromeVisible(true); // swipe hacia abajo = chrome visible
+      else setChromeVisible(false);
+      startY = null;
+    };
+    document.addEventListener("touchstart", onStart, { passive: true });
+    document.addEventListener("touchmove", onMove, { passive: true });
+    return () => {
+      document.removeEventListener("touchstart", onStart);
+      document.removeEventListener("touchmove", onMove);
+    };
+  }, []);
+
+  // En desktop también queremos que la barra se auto-oculte después de un
+  // tiempo sin actividad.
+  useEffect(() => {
+    if (!chromeVisible) return;
+    window.clearTimeout(chromeTimer.current);
+    chromeTimer.current = window.setTimeout(() => setChromeVisible(false), 4000);
+    return () => window.clearTimeout(chromeTimer.current);
+  }, [chromeVisible, percent]);
+
   const handlePosition = (newPosition: string, newPercent: number) => {
     position.current = newPosition;
     setPercent(newPercent);
     pending.current = true;
+    setChromeVisible(true);
   };
 
   const changeFontSize = (delta: number) => {
-    const size = Math.min(28, Math.max(14, fontSize + delta));
+    const size = Math.min(MAX_FONT, Math.max(MIN_FONT, fontSize + delta));
     setFontSize(size);
     localStorage.setItem("fontSize", String(size));
   };
+
+  const jumpToPercent = useCallback(
+    (next: number) => {
+      const clamped = Math.max(0, Math.min(100, next));
+      // El visor EpubView expone goTo() con CFI; aquí sólo pedimos por
+      // porcentaje porque no tenemos un mapa CFI↔page desde fuera.
+      // Para EPUB/TXT intentamos avanzar/retroceder páginas de forma
+      // proporcional al delta (heurística: 200 saltos por libro).
+      const handle = view.current;
+      if (!handle) return;
+      const delta = clamped - percent;
+      const steps = Math.max(-200, Math.min(200, Math.round(delta * 2)));
+      if (steps > 0) for (let i = 0; i < steps; i++) handle.next();
+      else if (steps < 0) for (let i = 0; i < -steps; i++) handle.prev();
+      // Actualizamos visualmente aunque el visor no haya confirmado aún;
+      // el callback onPosition ajustará al real.
+      setPercent(clamped);
+      pending.current = true;
+    },
+    [percent]
+  );
 
   const addBookmark = async () => {
     const label = window.prompt("Nombre del marcador:", `${percent}%`);
@@ -90,27 +168,10 @@ export default function Reader({ book, onBack }: { book: Book; onBack: () => voi
   const trackable = book.format !== "PDF";
 
   return (
-    <main className="reader">
-      <header className="reader-bar">
+    <main className={`reader ${chromeVisible ? "chrome-visible" : "chrome-hidden"}`}>
+      <header className="reader-bar reader-bar-top">
         <button onClick={onBack} aria-label="Volver a la biblioteca">← Biblioteca</button>
         <h1 title={book.title}>{book.title}</h1>
-        <div className="reader-tools">
-          {trackable && <span className="percent">{percent}%</span>}
-          {(book.format === "EPUB" || book.format === "TXT") && (
-            <>
-              <button onClick={() => changeFontSize(-2)} aria-label="Reducir letra">A−</button>
-              <button onClick={() => changeFontSize(2)} aria-label="Agrandar letra">A+</button>
-            </>
-          )}
-          {trackable && (
-            <>
-              <button onClick={addBookmark}>+ Marcador</button>
-              <button onClick={() => setShowMarks((v) => !v)} aria-expanded={showMarks}>
-                Marcadores ({bookmarks.length})
-              </button>
-            </>
-          )}
-        </div>
       </header>
 
       {showMarks && (
@@ -141,6 +202,40 @@ export default function Reader({ book, onBack }: { book: Book; onBack: () => voi
           />
         </div>
       )}
+
+      <footer className="reader-bar reader-bar-bottom" aria-hidden={!chromeVisible}>
+        {trackable && (
+          <div className="scrubber">
+            <input
+              type="range"
+              min={0}
+              max={100}
+              step={1}
+              value={Math.round(percent)}
+              onChange={(event) => jumpToPercent(Number(event.target.value))}
+              aria-label="Posición de lectura"
+              aria-valuetext={`${Math.round(percent)} por ciento`}
+            />
+          </div>
+        )}
+        <div className="reader-tools">
+          {trackable && <span className="percent">{Math.round(percent)}%</span>}
+          {(book.format === "EPUB" || book.format === "TXT") && (
+            <>
+              <button onClick={() => changeFontSize(-2)} aria-label="Reducir letra">A−</button>
+              <button onClick={() => changeFontSize(2)} aria-label="Agrandar letra">A+</button>
+            </>
+          )}
+          {trackable && (
+            <>
+              <button onClick={addBookmark}>+ Marcador</button>
+              <button onClick={() => setShowMarks((v) => !v)} aria-expanded={showMarks}>
+                Marcadores ({bookmarks.length})
+              </button>
+            </>
+          )}
+        </div>
+      </footer>
     </main>
   );
 }

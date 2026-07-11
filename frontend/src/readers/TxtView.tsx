@@ -15,8 +15,16 @@ const TxtView = forwardRef<ReaderHandle, ReaderViewProps>(function TxtView(
     el.scrollTop = fraction * (el.scrollHeight - el.clientHeight);
   };
 
+  const scrollByViewport = (direction: 1 | -1) => {
+    const el = host.current;
+    if (!el) return;
+    el.scrollBy({ top: direction * el.clientHeight * 0.9, behavior: "smooth" });
+  };
+
   useImperativeHandle(ref, () => ({
     goTo: (position: string) => scrollToFraction(Number(position) || 0),
+    next: () => scrollByViewport(1),
+    prev: () => scrollByViewport(-1),
   }));
 
   useEffect(() => {

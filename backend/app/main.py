@@ -58,6 +58,8 @@ ADMIN_PASSWORD = _require_str(
     "BOOKS_ADMIN_PASSWORD", os.getenv("BOOKS_ADMIN_PASSWORD"), ""
 )
 
+from app.extractors import extract_epub_cover, extract_epub_title, safe_filename
+
 SUPPORTED = {"EPUB", "PDF", "CBZ", "TXT"}
 MEDIA_TYPES = {
     "EPUB": "application/epub+zip",
@@ -102,6 +104,7 @@ class Book(Base):
     size_bytes: Mapped[int] = mapped_column(Integer)
     read_state: Mapped[str] = mapped_column(String(16), default="unread")
     favorite: Mapped[bool] = mapped_column(Boolean, default=False)
+    cover_path: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC)
     )
@@ -185,6 +188,7 @@ def serialize_book(book: Book) -> dict:
         "size_bytes": book.size_bytes,
         "read_state": book.read_state,
         "favorite": book.favorite,
+        "has_cover": bool(book.cover_path),
         "created_at": book.created_at.isoformat(),
         "progress": progress,
     }
@@ -348,7 +352,27 @@ def upload_book(
     finally:
         temp.unlink(missing_ok=True)
 
-    title = re.sub(r"[_-]+", " ", Path(safe_name).stem).strip() or "Sin título"
+    stem = re.sub(r"[_-]+", " ", Path(safe_name).stem).strip() or "Sin título"
+    title = stem
+    cover_path: str | None = None
+    if extension == "EPUB":
+        stored_path = STORAGE_PATH / storage_name
+        opf_title = extract_epub_title(stored_path, stem)
+        if opf_title and opf_title != stem:
+            title = opf_title
+        cover = extract_epub_cover(stored_path)
+        if cover:
+            media_type, cover_bytes = cover
+            ext = {
+                "image/jpeg": ".jpg",
+                "image/png": ".png",
+                "image/webp": ".webp",
+                "image/gif": ".gif",
+            }.get(media_type, ".img")
+            cover_name = f"{sha}{ext}"
+            (STORAGE_PATH / cover_name).write_bytes(cover_bytes)
+            cover_path = cover_name
+
     book = Book(
         title=title,
         format=extension,
@@ -356,6 +380,7 @@ def upload_book(
         storage_name=storage_name,
         sha256=sha,
         size_bytes=size,
+        cover_path=cover_path,
     )
     db.add(book)
     db.commit()
@@ -391,6 +416,8 @@ def delete_book(
 ) -> None:
     book = require_book(book_id, db)
     (STORAGE_PATH / book.storage_name).unlink(missing_ok=True)
+    if book.cover_path:
+        (STORAGE_PATH / book.cover_path).unlink(missing_ok=True)
     db.execute(delete(Bookmark).where(Bookmark.book_id == book_id))
     db.execute(delete(Highlight).where(Highlight.book_id == book_id))
     db.execute(delete(ShelfBook).where(ShelfBook.book_id == book_id))
@@ -408,6 +435,26 @@ def file_range(path: Path, start: int, end: int) -> Iterator[bytes]:
                 break
             remaining -= len(chunk)
             yield chunk
+
+
+@app.get("/api/books/{book_id}/cover")
+def get_book_cover(
+    book_id: int, db: Session = Depends(db_session), _: User = Depends(current_user)
+):
+    book = require_book(book_id, db)
+    if not book.cover_path:
+        raise HTTPException(404, "Este libro no tiene portada extraída")
+    path = STORAGE_PATH / book.cover_path
+    if not path.exists():
+        raise HTTPException(404, "Archivo de portada no disponible")
+    media = {
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".png": "image/png",
+        ".webp": "image/webp",
+        ".gif": "image/gif",
+    }.get(path.suffix.lower(), "application/octet-stream")
+    return FileResponse(path, media_type=media, headers={"Cache-Control": "public, max-age=86400"})
 
 
 @app.get("/api/books/{book_id}/file")
