@@ -114,7 +114,7 @@ export default function Reader({ book, onBack }: { book: Book; onBack: () => voi
       </header>
 
       {showMarks && (
-        <aside className="bookmarks">
+        <aside className="bookmarks" aria-label="Marcadores del libro">
           {bookmarks.length === 0 && <p>No hay marcadores todavía.</p>}
           {bookmarks.map((mark) => (
             <span key={mark.id} className="bookmark-chip">
@@ -128,7 +128,7 @@ export default function Reader({ book, onBack }: { book: Book; onBack: () => voi
       )}
 
       {error && <p className="error" role="alert">{error}</p>}
-      {!blob && !error && <p className="loading">Descargando libro…</p>}
+      {!blob && !error && <p className="loading" role="status" aria-live="polite">Descargando libro…</p>}
       {blob && (
         <div className="reading">
           <View
