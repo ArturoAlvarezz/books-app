@@ -215,13 +215,16 @@ export default function Library({
   const goalProgress = Math.min(100, (completedBooks / nextGoal.count) * 100);
 
   return (
-    <main>
+    <main className="library-page">
       <header className="topbar">
-        <h1>Mis Libros</h1>
+        <div className="brand-lockup">
+          <img className="brand-icon" src="/icons/icon.svg" alt="" />
+          <h1>Mis Libros</h1>
+        </div>
         <span className={online ? "status online" : "status offline"}>
           {online ? "● En línea" : "● Sin conexión"}
         </span>
-        <button onClick={onLogout}>Salir</button>
+        <button className="logout-button" onClick={onLogout}>↪ Salir</button>
       </header>
 
       <section className="reading-quest" aria-labelledby="reading-quest-title">
@@ -332,9 +335,9 @@ export default function Library({
         {(
           [
             ["all", "Todos"],
-            ["reading", "Leyendo"],
-            ["finished", "Terminados"],
-            ["favorite", "★ Favoritos"],
+            ["reading", "▣ Leyendo"],
+            ["finished", "● Terminados"],
+            ["favorite", "☆ Favoritos"],
           ] as [Filter, string][]
         ).map(([value, label]) => (
           <button
@@ -428,7 +431,21 @@ export default function Library({
             </div>
           </article>
         ))}
+        {books.length > 0 && (
+          <aside className="library-inspiration" aria-label="Motivación de lectura">
+            <div className="inspiration-book" aria-hidden="true">▱</div>
+            <p>Tu próxima <strong>gran historia</strong><br />te está esperando</p>
+            <span aria-hidden="true">── ✧ ──</span>
+          </aside>
+        )}
       </section>
+
+      {books.length > 0 && (
+        <aside className="daily-tip" aria-label="Consejo del día">
+          <span aria-hidden="true">✦</span>
+          <div><strong>Consejo del día</strong><p>Leer es soñar con los ojos abiertos. ¡Sigue explorando nuevos mundos!</p></div>
+        </aside>
+      )}
 
       {!books.length && !error && (
         <p className="empty">
