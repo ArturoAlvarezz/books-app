@@ -420,16 +420,14 @@ progress {
   transition: transform 220ms ease, opacity 220ms ease;
 }
 
-.reader.chrome-hidden .reader-bar-bottom {
-  transform: translateY(calc(100% + 12px));
-  opacity: 0;
-  pointer-events: none;
-}
-
+/*
+ * `transform` sólo mueve píxeles: como el footer sigue siendo un hijo flex,
+ * conserva su altura y deja un hueco bajo el EPUB. Al cerrar los controles
+ * los sacamos del flujo para que `.reading` recupere inmediatamente ese alto.
+ */
+.reader.chrome-hidden .reader-bar-bottom,
 .reader.chrome-hidden .reader-bar-top {
-  transform: translateY(-120%);
-  opacity: 0;
-  pointer-events: none;
+  display: none;
 }
 
 .reader-bar-top {
@@ -508,12 +506,62 @@ progress {
 }
 
 .reading {
+  position: relative;
   flex: 1;
   min-height: 0;
   border-radius: 12px;
   overflow: hidden;
   background: var(--paper);
   color: var(--ink);
+}
+
+/* Controles de paginación: sólo escritorio; en móvil se usa swipe horizontal. */
+.reader-page-controls {
+  display: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .reader-page-controls {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    pointer-events: none;
+    z-index: 3;
+  }
+
+  .reader-page-button {
+    width: 46px;
+    height: 76px;
+    border: 0;
+    border-radius: 0 12px 12px 0;
+    padding: 0;
+    background: color-mix(in srgb, var(--surface) 88%, transparent);
+    box-shadow: 0 2px 12px rgb(0 0 0 / 22%);
+    color: var(--text);
+    cursor: pointer;
+    font-size: 48px;
+    line-height: 1;
+    opacity: 0.55;
+    pointer-events: auto;
+    transition: opacity 160ms ease, background 160ms ease, transform 160ms ease;
+  }
+
+  .reader-page-button-next {
+    border-radius: 12px 0 0 12px;
+  }
+
+  .reader-page-button:hover,
+  .reader-page-button:focus-visible {
+    background: var(--accent);
+    color: #fff;
+    opacity: 1;
+  }
+
+  .reader-page-button:active {
+    transform: scale(0.96);
+  }
 }
 
 /* EPUB */

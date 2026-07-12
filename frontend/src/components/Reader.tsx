@@ -217,6 +217,28 @@ export default function Reader({ book, onBack }: { book: Book; onBack: () => voi
             onPosition={handlePosition}
             onError={setError}
           />
+          <nav className="reader-page-controls" aria-label="Cambiar de página">
+            <button
+              type="button"
+              className="reader-page-button reader-page-button-prev"
+              onPointerDown={(event) => event.stopPropagation()}
+              onPointerUp={(event) => event.stopPropagation()}
+              onClick={() => view.current?.prev()}
+              aria-label="Página anterior"
+            >
+              ‹
+            </button>
+            <button
+              type="button"
+              className="reader-page-button reader-page-button-next"
+              onPointerDown={(event) => event.stopPropagation()}
+              onPointerUp={(event) => event.stopPropagation()}
+              onClick={() => view.current?.next()}
+              aria-label="Página siguiente"
+            >
+              ›
+            </button>
+          </nav>
         </div>
       )}
 
