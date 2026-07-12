@@ -19,6 +19,24 @@ const READ_LABELS: Record<Book["read_state"], string> = {
   finished: "Terminado",
 };
 
+const READING_MILESTONES = [
+  { count: 1, label: "Primera aventura", icon: "✦" },
+  { count: 5, label: "Explorador", icon: "◈" },
+  { count: 10, label: "Lector voraz", icon: "✺" },
+  { count: 25, label: "Coleccionista", icon: "♛" },
+  { count: 50, label: "Leyenda", icon: "✹" },
+];
+
+function nextReadingMilestone(completed: number) {
+  return (
+    READING_MILESTONES.find((milestone) => milestone.count > completed) ?? {
+      count: Math.ceil((completed + 1) / 25) * 25,
+      label: "Leyenda de la biblioteca",
+      icon: "✹",
+    }
+  );
+}
+
 type Filter = "all" | "reading" | "finished" | "favorite";
 
 function coverStyle(title: string): CSSProperties {
@@ -34,6 +52,7 @@ export default function Library({
   onLogout: () => void;
 }) {
   const [books, setBooks] = useState<Book[]>([]);
+  const [catalogBooks, setCatalogBooks] = useState<Book[]>([]);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
   const [format, setFormat] = useState("");
@@ -58,7 +77,14 @@ export default function Library({
     if (filter === "reading" || filter === "finished") params.set("read", filter);
     if (filter === "favorite") params.set("favorite", "true");
     try {
-      setBooks(await api<Book[]>(`/api/books?${params}`));
+      const path = `/api/books?${params}`;
+      const listedBooks = api<Book[]>(path);
+      // Las estadísticas siempre se calculan sobre la biblioteca completa,
+      // aunque la grilla esté filtrada por título, formato o estado.
+      const fullCatalog = query || format || filter !== "all" ? api<Book[]>("/api/books") : listedBooks;
+      const [nextBooks, nextCatalog] = await Promise.all([listedBooks, fullCatalog]);
+      setBooks(nextBooks);
+      setCatalogBooks(nextCatalog);
       setError("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo cargar la biblioteca");
@@ -180,6 +206,14 @@ export default function Library({
     }
   };
 
+  const completedBooks = catalogBooks.filter((book) => book.read_state === "finished").length;
+  const readingBooks = catalogBooks.filter((book) => book.read_state === "reading").length;
+  const nextGoal = nextReadingMilestone(completedBooks);
+  const displayedMilestones =
+    nextGoal.count > READING_MILESTONES.at(-1)!.count ? [...READING_MILESTONES, nextGoal] : READING_MILESTONES;
+  const booksRemaining = Math.max(0, nextGoal.count - completedBooks);
+  const goalProgress = Math.min(100, (completedBooks / nextGoal.count) * 100);
+
   return (
     <main>
       <header className="topbar">
@@ -189,6 +223,62 @@ export default function Library({
         </span>
         <button onClick={onLogout}>Salir</button>
       </header>
+
+      <section className="reading-quest" aria-labelledby="reading-quest-title">
+        <div className="quest-orb" aria-hidden="true">✦</div>
+        <div className="quest-summary">
+          <p className="quest-kicker">Tu viaje lector</p>
+          <h2 id="reading-quest-title">
+            <strong>{completedBooks}</strong> {completedBooks === 1 ? "libro terminado" : "libros terminados"}
+          </h2>
+          <p>
+            {completedBooks === 0
+              ? "Toda gran biblioteca empieza con una primera aventura."
+              : readingBooks > 0
+                ? `${readingBooks} ${readingBooks === 1 ? "historia te espera" : "historias te esperan"} ahora.`
+                : "Cada libro terminado merece una nueva aventura."}
+          </p>
+        </div>
+
+        <div className="quest-goal">
+          <div className="goal-heading">
+            <span>Próxima meta</span>
+            <strong>{nextGoal.icon} {nextGoal.label}</strong>
+          </div>
+          <div
+            className="goal-track"
+            role="progressbar"
+            aria-label={`Progreso hacia ${nextGoal.label}`}
+            aria-valuemin={0}
+            aria-valuemax={nextGoal.count}
+            aria-valuenow={completedBooks}
+          >
+            <span className="goal-fill" style={{ width: `${goalProgress}%` }} />
+          </div>
+          <p>
+            {booksRemaining === 1
+              ? "Te falta 1 libro para desbloquearla"
+              : `Te faltan ${booksRemaining} libros para desbloquearla`}
+          </p>
+        </div>
+
+        <div className="milestones" aria-label="Metas de lectura">
+          {displayedMilestones.map((milestone) => {
+            const unlocked = completedBooks >= milestone.count;
+            const current = milestone.count === nextGoal.count;
+            return (
+              <div
+                className={`milestone ${unlocked ? "unlocked" : ""} ${current ? "current" : ""}`}
+                key={milestone.count}
+              >
+                <span aria-hidden="true">{milestone.icon}</span>
+                <strong>{milestone.count}</strong>
+                <small>{milestone.label}</small>
+              </div>
+            );
+          })}
+        </div>
+      </section>
 
       <section className="actions">
         <input
@@ -261,8 +351,12 @@ export default function Library({
       {notice && <p className="notice" role="status">{notice}</p>}
 
       <section className="grid">
-        {books.map((book) => (
-          <article className="card" key={book.id}>
+        {books.map((book, index) => (
+          <article
+            className="card"
+            key={book.id}
+            style={{ "--card-index": String(Math.min(index, 10)) } as CSSProperties}
+          >
             <button
               className="cover"
               style={coverStyle(book.title)}

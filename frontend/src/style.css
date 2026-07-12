@@ -110,6 +110,201 @@ button.primary:hover,
   color: var(--danger);
 }
 
+/* ---------- Viaje lector y metas ---------- */
+
+.reading-quest {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  grid-template-columns: auto minmax(270px, 1fr) minmax(240px, 1.2fr) minmax(260px, 1.4fr);
+  gap: 20px;
+  align-items: center;
+  overflow: hidden;
+  margin: 22px 0 8px;
+  padding: 22px;
+  border: 1px solid color-mix(in srgb, var(--accent) 42%, var(--border));
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at 8% 0%, rgb(139 123 244 / 0.32), transparent 38%),
+    radial-gradient(circle at 90% 100%, rgb(110 229 197 / 0.14), transparent 40%),
+    linear-gradient(125deg, var(--surface-2), var(--surface));
+  box-shadow: 0 16px 34px rgb(4 4 14 / 0.25);
+}
+
+.reading-quest::before,
+.reading-quest::after {
+  position: absolute;
+  z-index: -1;
+  content: "";
+  width: 180px;
+  height: 180px;
+  border-radius: 50%;
+  filter: blur(2px);
+  opacity: 0.48;
+  pointer-events: none;
+}
+
+.reading-quest::before {
+  top: -120px;
+  right: 20%;
+  background: rgb(139 123 244 / 0.35);
+}
+
+.reading-quest::after {
+  right: -90px;
+  bottom: -115px;
+  background: rgb(110 229 197 / 0.16);
+}
+
+.quest-orb {
+  display: grid;
+  width: 64px;
+  height: 64px;
+  place-items: center;
+  border: 1px solid rgb(255 255 255 / 0.45);
+  border-radius: 50%;
+  background: linear-gradient(145deg, #b5a9ff, var(--accent-strong));
+  box-shadow: 0 0 0 7px rgb(139 123 244 / 0.12), 0 10px 24px rgb(50 37 118 / 0.45);
+  color: #fff;
+  font-size: 30px;
+}
+
+.quest-kicker,
+.goal-heading span {
+  margin: 0 0 2px;
+  color: #c9c3ff;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.quest-summary h2 {
+  margin: 0;
+  color: var(--text);
+  font-size: clamp(20px, 2.4vw, 30px);
+  letter-spacing: -0.035em;
+}
+
+.quest-summary h2 strong {
+  color: #c9c3ff;
+  font-size: 1.28em;
+}
+
+.quest-summary > p:last-child,
+.quest-goal > p {
+  margin: 4px 0 0;
+  color: var(--text-dim);
+  font-size: 13px;
+}
+
+.quest-goal {
+  padding: 12px 16px;
+  border: 1px solid rgb(255 255 255 / 0.09);
+  border-radius: 14px;
+  background: rgb(10 10 20 / 0.22);
+}
+
+.goal-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.goal-heading strong {
+  color: var(--text);
+  font-size: 14px;
+  text-align: right;
+}
+
+.goal-track {
+  height: 10px;
+  margin-top: 12px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 0.28);
+  box-shadow: inset 0 1px 2px rgb(0 0 0 / 0.25);
+}
+
+.goal-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #8776ef, #b8a8ff 55%, #6ee5c5);
+  box-shadow: 0 0 14px rgb(139 123 244 / 0.8);
+  transition: width 700ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.milestones {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(48px, 1fr));
+  gap: 6px;
+}
+
+.milestone {
+  display: grid;
+  min-width: 0;
+  justify-items: center;
+  gap: 2px;
+  padding: 8px 3px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  color: var(--text-dim);
+  text-align: center;
+}
+
+.milestone > span {
+  font-size: 18px;
+  filter: grayscale(1);
+  opacity: 0.6;
+}
+
+.milestone strong {
+  font-size: 14px;
+}
+
+.milestone small {
+  overflow: hidden;
+  width: 100%;
+  font-size: 10px;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.milestone.current {
+  border-color: rgb(184 168 255 / 0.55);
+  background: rgb(139 123 244 / 0.14);
+  color: #ded9ff;
+}
+
+.milestone.current > span {
+  filter: none;
+  opacity: 1;
+}
+
+.milestone.unlocked {
+  color: #e9e5ff;
+}
+
+.milestone.unlocked > span {
+  filter: none;
+  opacity: 1;
+  color: #ffd766;
+}
+
+@media (max-width: 980px) {
+  .reading-quest {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .quest-goal,
+  .milestones {
+    grid-column: 1 / -1;
+  }
+}
+
 .actions {
   display: flex;
   gap: 10px;
@@ -183,6 +378,37 @@ button.primary:hover,
   padding: 14px;
   display: flex;
   flex-direction: column;
+  animation: card-enter 480ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation-delay: calc(var(--card-index, 0) * 45ms);
+  transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .card:hover {
+    z-index: 1;
+    border-color: color-mix(in srgb, var(--accent) 65%, var(--border));
+    box-shadow: 0 16px 28px rgb(5 5 15 / 0.28);
+    transform: translateY(-5px);
+  }
+
+  .card:hover .cover-img {
+    transform: scale(1.045);
+  }
+}
+
+.card:focus-within {
+  border-color: color-mix(in srgb, var(--accent) 65%, var(--border));
+}
+
+@keyframes card-enter {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .cover {
@@ -219,6 +445,7 @@ button.primary:hover,
   object-fit: cover;
   border-radius: inherit;
   background: hsl(var(--cover-hue) 28% 22%);
+  transition: transform 420ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 .cover:has(.cover-img) .cover-format,
@@ -600,10 +827,10 @@ progress {
     align-items: center;
     gap: 6px;
     transform: translateX(-50%);
-    border: 1px solid var(--border);
+    border: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
     border-radius: 999px;
     padding: 8px 14px;
-    background: color-mix(in srgb, var(--surface) 60%, transparent);
+    background: color-mix(in srgb, var(--surface) 35%, transparent);
     box-shadow: 0 2px 12px rgb(0 0 0 / 22%);
     color: var(--text);
     cursor: pointer;
@@ -838,6 +1065,32 @@ progress {
     padding: 12px;
   }
 
+  .reading-quest {
+    grid-template-columns: 1fr;
+    gap: 14px;
+    padding: 18px;
+    border-radius: 16px;
+  }
+
+  .quest-orb {
+    width: 52px;
+    height: 52px;
+    font-size: 24px;
+  }
+
+  .quest-goal,
+  .milestones {
+    grid-column: auto;
+  }
+
+  .milestones {
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(52px, 1fr);
+    grid-template-columns: repeat(5, minmax(52px, 1fr));
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
+
   .grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 12px;
@@ -912,6 +1165,16 @@ progress {
   /* Táctil puro: el scrubber debe ser alto y fácil de tocar */
   .scrubber input[type="range"] {
     height: 32px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card,
+  .cover-img,
+  .goal-fill,
+  .reader-chrome-reveal {
+    animation: none !important;
+    transition-duration: 1ms !important;
   }
 }
 
