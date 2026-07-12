@@ -92,7 +92,9 @@ export default function Reader({ book, onBack }: { book: Book; onBack: () => voi
     position.current = newPosition;
     setPercent(newPercent);
     pending.current = true;
-    setChromeVisible(true);
+    // epub.js emite `relocated` también después de `rendition.resize()`.
+    // No alterar el chrome aquí: ocultar la barra cambia el alto del lector,
+    // dispara ese resize y, si la mostramos de nuevo, crea un bucle visual.
   };
 
   const changeFontSize = (delta: number) => {
