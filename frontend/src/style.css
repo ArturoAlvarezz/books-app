@@ -515,8 +515,14 @@ progress {
   color: var(--ink);
 }
 
+/* Al ocultar el chrome, mantiene la misma respiración inferior que arriba. */
+.reader.chrome-hidden .reading {
+  margin-bottom: 10px;
+}
+
 /* Controles de paginación: sólo escritorio; en móvil se usa swipe horizontal. */
-.reader-page-controls {
+.reader-page-controls,
+.reader-chrome-reveal {
   display: none;
 }
 
@@ -561,6 +567,34 @@ progress {
 
   .reader-page-button:active {
     transform: scale(0.96);
+  }
+
+  /* En escritorio el tap central puede quedar dentro del iframe del EPUB.
+     Este control ofrece siempre una forma explícita de recuperar el menú. */
+  .reader.chrome-hidden .reader-chrome-reveal {
+    position: absolute;
+    z-index: 4;
+    bottom: 14px;
+    left: 50%;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transform: translateX(-50%);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 8px 14px;
+    background: color-mix(in srgb, var(--surface) 92%, transparent);
+    box-shadow: 0 2px 12px rgb(0 0 0 / 22%);
+    color: var(--text);
+    cursor: pointer;
+    font-size: 14px;
+  }
+
+  .reader-chrome-reveal:hover,
+  .reader-chrome-reveal:focus-visible {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
   }
 }
 

@@ -241,6 +241,16 @@ export default function Reader({ book, onBack }: { book: Book; onBack: () => voi
               ›
             </button>
           </nav>
+          <button
+            type="button"
+            className="reader-chrome-reveal"
+            onPointerDown={(event) => event.stopPropagation()}
+            onPointerUp={(event) => event.stopPropagation()}
+            onClick={() => setChromeVisible(true)}
+            aria-label="Mostrar menú de lectura"
+          >
+            ☰ Menú
+          </button>
         </div>
       )}
 
